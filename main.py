@@ -55,6 +55,7 @@ class BettingDatabase:
                     ask_amount DECIMAL NOT NULL,
                     status TEXT CHECK (status IN ('open', 'accepted', 'cancelled')) DEFAULT 'open',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    target_user_id TEXT,
                     FOREIGN KEY (market_id) REFERENCES markets(market_id)
                 )
             ''')
@@ -139,10 +140,10 @@ async def create_market(ctx, *, market_details):
     await ctx.send(embed=embed)
 
 @bot.command(name='offerbet')
-async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float):
+async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):
     """
     Offer a bet in a market
-    Usage: !offerbet <market_id> <outcome> <offer_amount> <ask_amount>
+    Usage: !offerbet <market_id> <outcome> <offer_amount> <ask_amount> [@user]
     """
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
@@ -172,9 +173,10 @@ async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float)
         # Create bet offer
         cursor.execute('''
             INSERT INTO bet_offers 
-            (market_id, bettor_id, outcome, offer_amount, ask_amount)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (market_id, str(ctx.author.id), outcome, offer, ask))
+            (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (market_id, str(ctx.author.id), outcome, offer, ask, 
+              str(target_user.id) if target_user else None))
         
         bet_id = cursor.lastrowid
         conn.commit()
@@ -189,77 +191,86 @@ async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float)
     embed.add_field(name="You Risk", value=f"${offer}", inline=True)
     embed.add_field(name="To Win", value=f"${ask}", inline=True)
     
+    if target_user:
+        embed.add_field(name="Offered To", value=target_user.mention, inline=False)
+    
     await ctx.send(embed=embed)
 
 @bot.command(name='acceptbet')
 async def accept_bet(ctx, bet_id: int):
-    """
-    Accept an open bet offer
-    Usage: !acceptbet <bet_id>
-    """
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get bet offer details
-        cursor.execute('''
-            SELECT bo.market_id, bo.bettor_id, bo.status, bo.outcome, 
-                   bo.offer_amount, bo.ask_amount, m.status as market_status
-            FROM bet_offers bo
-            JOIN markets m ON bo.market_id = m.market_id
-            WHERE bo.bet_id = ?
-        ''', (bet_id,))
-        
-        bet = cursor.fetchone()
-        if not bet:
-            await ctx.send("Bet offer not found.")
-            return
-        
-        market_id, bettor_id, bet_status, outcome, offer_amount, ask_amount, market_status = bet
-        
-        # Validation checks
-        if str(ctx.author.id) == bettor_id:
-            await ctx.send("You cannot accept your own bet offer.")
-            return
-        
-        if bet_status != 'open':
-            await ctx.send("This bet offer is no longer available.")
-            return
-        
-        if market_status != 'open':
-            await ctx.send("This market is no longer open for betting.")
-            return
-        
-        # Update bet offer status and create accepted bet record
-        cursor.execute('''
-            UPDATE bet_offers 
-            SET status = 'accepted' 
-            WHERE bet_id = ?
-        ''', (bet_id,))
-        
-        cursor.execute('''
-            INSERT INTO accepted_bets (bet_id, acceptor_id) 
-            VALUES (?, ?)
-        ''', (bet_id, str(ctx.author.id)))
-        
-        conn.commit()
-        
-        # Get bettor's username for the embed
-        bettor = await bot.fetch_user(int(bettor_id))
-        bettor_name = bettor.name if bettor else "Unknown User"
-        
-        embed = discord.Embed(
-            title="Bet Accepted!",
-            description=f"Bet ID: {bet_id}",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Market ID", value=market_id, inline=False)
-        embed.add_field(name="Outcome", value=outcome, inline=False)
-        embed.add_field(name="Original Bettor", value=bettor_name, inline=True)
-        embed.add_field(name="Acceptor", value=ctx.author.name, inline=True)
-        embed.add_field(name=f"{bettor_name} Risks", value=f"${offer_amount}", inline=True)
-        embed.add_field(name=f"{ctx.author.name} Risks", value=f"${ask_amount}", inline=True)
-        
-        await ctx.send(embed=embed)
+   """
+   Accept an open bet offer
+   Usage: !acceptbet <bet_id>
+   """
+   with bot.db.get_connection() as conn:
+       cursor = conn.cursor()
+       
+       # Get bet offer details
+       cursor.execute('''
+           SELECT bo.market_id, bo.bettor_id, bo.status, bo.outcome, 
+                  bo.offer_amount, bo.ask_amount, m.status as market_status,
+                  bo.target_user_id
+           FROM bet_offers bo
+           JOIN markets m ON bo.market_id = m.market_id
+           WHERE bo.bet_id = ?
+       ''', (bet_id,))
+       
+       bet = cursor.fetchone()
+       if not bet:
+           await ctx.send("Bet offer not found.")
+           return
+       
+       market_id, bettor_id, bet_status, outcome, offer_amount, ask_amount, market_status, target_user_id = bet
+       
+       # Validation checks
+       if str(ctx.author.id) == bettor_id:
+           await ctx.send("You cannot accept your own bet offer.")
+           return
+       
+       if bet_status != 'open':
+           await ctx.send("This bet offer is no longer available.")
+           return
+       
+       if market_status != 'open':
+           await ctx.send("This market is no longer open for betting.")
+           return
+
+       # Check if bet was targeted at a specific user
+       if target_user_id and str(ctx.author.id) != target_user_id:
+           await ctx.send("This bet was offered to a specific user only.")
+           return
+       
+       # Update bet offer status and create accepted bet record
+       cursor.execute('''
+           UPDATE bet_offers 
+           SET status = 'accepted' 
+           WHERE bet_id = ?
+       ''', (bet_id,))
+       
+       cursor.execute('''
+           INSERT INTO accepted_bets (bet_id, acceptor_id) 
+           VALUES (?, ?)
+       ''', (bet_id, str(ctx.author.id)))
+       
+       conn.commit()
+       
+       # Get bettor's username for the embed
+       bettor = await bot.fetch_user(int(bettor_id))
+       bettor_name = bettor.name if bettor else "Unknown User"
+       
+       embed = discord.Embed(
+           title="Bet Accepted!",
+           description=f"Bet ID: {bet_id}",
+           color=discord.Color.green()
+       )
+       embed.add_field(name="Market ID", value=market_id, inline=False)
+       embed.add_field(name="Outcome", value=outcome, inline=False)
+       embed.add_field(name="Original Bettor", value=bettor_name, inline=True)
+       embed.add_field(name="Acceptor", value=ctx.author.name, inline=True)
+       embed.add_field(name=f"{bettor_name} Risks", value=f"${offer_amount}", inline=True)
+       embed.add_field(name=f"{ctx.author.name} Risks", value=f"${ask_amount}", inline=True)
+       
+       await ctx.send(embed=embed)
 
 @bot.command(name='listmarkets')
 async def list_markets(ctx):
