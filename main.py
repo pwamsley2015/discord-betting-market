@@ -312,14 +312,16 @@ async def list_bets(ctx, market_id: int = None):
         
         if market_id:
             cursor.execute('''
-                SELECT bo.bet_id, m.title, bo.outcome, bo.offer_amount, bo.ask_amount
+                SELECT bo.bet_id, m.title, bo.outcome, bo.offer_amount, bo.ask_amount, 
+                       bo.bettor_id, bo.target_user_id
                 FROM bet_offers bo
                 JOIN markets m ON bo.market_id = m.market_id
                 WHERE bo.status = 'open' AND bo.market_id = ?
             ''', (market_id,))
         else:
             cursor.execute('''
-                SELECT bo.bet_id, m.title, bo.outcome, bo.offer_amount, bo.ask_amount
+                SELECT bo.bet_id, m.title, bo.outcome, bo.offer_amount, bo.ask_amount,
+                       bo.bettor_id, bo.target_user_id
                 FROM bet_offers bo
                 JOIN markets m ON bo.market_id = m.market_id
                 WHERE bo.status = 'open'
@@ -333,10 +335,29 @@ async def list_bets(ctx, market_id: int = None):
     
     embed = discord.Embed(title="Open Bet Offers", color=discord.Color.gold())
     
-    for bet_id, title, outcome, offer, ask in bets:
+    for bet_id, title, outcome, offer, ask, bettor_id, target_user_id in bets:
+        # Get bettor's name
+        bettor = await bot.fetch_user(int(bettor_id))
+        bettor_name = bettor.name if bettor else "Unknown User"
+        
+        # Build bet description
+        description = [
+            f"Market: {title}",
+            f"Outcome: {outcome}",
+            f"Offered by: {bettor_name}",
+            f"Risk: ${offer}",
+            f"To Win: ${ask}"
+        ]
+        
+        # Add target user info if present
+        if target_user_id:
+            target_user = await bot.fetch_user(int(target_user_id))
+            if target_user:
+                description.append(f"Offered to: {target_user.mention}")
+        
         embed.add_field(
             name=f"Bet ID: {bet_id}",
-            value=f"Market: {title}\nOutcome: {outcome}\nRisk: ${offer}\nTo Win: ${ask}",
+            value="\n".join(description),
             inline=False
         )
     
