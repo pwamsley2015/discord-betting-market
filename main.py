@@ -364,7 +364,7 @@ async def list_bets(ctx, market_id: int = None):
     await ctx.send(embed=embed)
 
 @bot.command(name='resolvemarket')
-async def resolve_market(ctx, market_id: int, winning_outcome: str):
+async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
     """
     Resolve a betting market with the winning outcome
     Usage: !resolvemarket <market_id> <winning_outcome>
