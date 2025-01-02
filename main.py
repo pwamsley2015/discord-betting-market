@@ -149,14 +149,16 @@ async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float,
         cursor = conn.cursor()
         
         # Verify market exists and is open
-        cursor.execute('SELECT status FROM markets WHERE market_id = ?', (market_id,))
+        cursor.execute('SELECT status, title, description FROM markets WHERE market_id = ?', (market_id,))
         market = cursor.fetchone()
         
         if not market:
             await ctx.send("Market not found.")
             return
+
+        status, title, description = market
         
-        if market[0] != 'open':
+        if status != 'open':
             await ctx.send("Market is not open for betting.")
             return
         
@@ -183,6 +185,7 @@ async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float,
     
     embed = discord.Embed(
         title="Bet Offered!",
+        description=f"**Market:** {title}\n{description if description else ''}",
         color=discord.Color.blue()
     )
     embed.add_field(name="Bet ID", value=bet_id, inline=False)
@@ -209,7 +212,7 @@ async def accept_bet(ctx, bet_id: int):
        cursor.execute('''
            SELECT bo.market_id, bo.bettor_id, bo.status, bo.outcome, 
                   bo.offer_amount, bo.ask_amount, m.status as market_status,
-                  bo.target_user_id
+                  bo.target_user_id, m.title, m.description
            FROM bet_offers bo
            JOIN markets m ON bo.market_id = m.market_id
            WHERE bo.bet_id = ?
@@ -220,7 +223,7 @@ async def accept_bet(ctx, bet_id: int):
            await ctx.send("Bet offer not found.")
            return
        
-       market_id, bettor_id, bet_status, outcome, offer_amount, ask_amount, market_status, target_user_id = bet
+       market_id, bettor_id, bet_status, outcome, offer_amount, ask_amount, market_status, target_user_id, title, description = bet
        
        # Validation checks
        if str(ctx.author.id) == bettor_id:
@@ -260,7 +263,7 @@ async def accept_bet(ctx, bet_id: int):
        
        embed = discord.Embed(
            title="Bet Accepted!",
-           description=f"Bet ID: {bet_id}",
+            description=f"**Market:** {title}\n{description if description else ''}\n\nBet ID: {bet_id}",
            color=discord.Color.green()
        )
        embed.add_field(name="Market ID", value=market_id, inline=False)
