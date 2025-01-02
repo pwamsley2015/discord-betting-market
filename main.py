@@ -185,7 +185,7 @@ async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float,
     
     embed = discord.Embed(
         title="Bet Offered!",
-        description=f"**Market:** {title}\n{description if description else ''}",
+        description=f"**Market:** {title}\n",
         color=discord.Color.blue()
     )
     embed.add_field(name="Bet ID", value=bet_id, inline=False)
@@ -263,7 +263,7 @@ async def accept_bet(ctx, bet_id: int):
        
        embed = discord.Embed(
            title="Bet Accepted!",
-            description=f"**Market:** {title}\n{description if description else ''}\n\nBet ID: {bet_id}",
+            description=f"**Market:** {title}\n\nBet ID: {bet_id}",
            color=discord.Color.green()
        )
        embed.add_field(name="Market ID", value=market_id, inline=False)
