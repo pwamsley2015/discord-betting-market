@@ -113,9 +113,9 @@ async def create_market(ctx, *, market_details):
         
         # Create market
         cursor.execute('''
-            INSERT INTO markets (title, description) 
-            VALUES (?, ?)
-        ''', (title, title))
+            INSERT INTO markets (title, description, creator_id) 
+            VALUES (?, ?, ?)
+        ''', (title, title, str(ctx.author.id)))
         
         market_id = cursor.lastrowid
         
@@ -378,7 +378,7 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
         
         # Check if market exists and user is the creator
         cursor.execute('''
-            SELECT title, status
+            SELECT title, status, creator_id
             FROM markets
             WHERE market_id = ?
         ''', (market_id,))
@@ -388,7 +388,13 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
             await ctx.send("Market not found.")
             return
         
-        title, status = market
+        title, status, creator_id = market
+
+        # Verify the user is the creator
+        if creator_id is not None:
+            if str(ctx.author.id) != str(creator_id):
+                await ctx.send("Only the market creator can resolve this market.")
+                return
         
         if status == 'resolved':
             await ctx.send("This market has already been resolved.")
