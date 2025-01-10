@@ -664,7 +664,7 @@ async def explain_bet(ctx, bet_id: int):
         # Get bet details
         cursor.execute('''
             SELECT b.bettor_id, b.outcome, b.offer_amount, b.ask_amount, 
-                   b.target_user_id, m.question, m.market_id
+                   b.target_user_id, m.title, m.market_id
             FROM bet_offers b
             JOIN markets m ON b.market_id = m.market_id
             WHERE b.bet_id = ?
@@ -675,7 +675,7 @@ async def explain_bet(ctx, bet_id: int):
             await ctx.send("Bet not found.")
             return
             
-        bettor_id, outcome, offer, ask, target_id, question, market_id = bet
+        bettor_id, outcome, offer, ask, target_id, title, market_id = bet
         
         # Get all possible outcomes for this market
         cursor.execute('''
@@ -688,7 +688,7 @@ async def explain_bet(ctx, bet_id: int):
     # Create explanation embed
     embed = discord.Embed(
         title=f"Bet #{bet_id} Explained",
-        description=f"Market: {question}",
+        description=f"Market: {title}",
         color=discord.Color.blue()
     )
     
@@ -743,7 +743,7 @@ async def dennis_help(ctx):
     embed.add_field(
         name="📊 Create & Manage Markets",
         value="""
-**!createmarket** `<question>? <option1>, <option2>, ...`
+**!createmarket** `<title>? <option1>, <option2>, ...`
 Create a new betting market
 Example: `!createmarket Will it rain tomorrow? Yes, No`
 **!resolvemarket** `<market_id> <winning_outcome>`
