@@ -652,6 +652,11 @@ async def my_bets(ctx):
     
     await ctx.send(embed=embed)
 
+
+@bot.command(name='noslop')
+async def noslop(ctx):
+    await ctx.send("hey")
+
 @bot.command(name='dennishelp')
 async def dennis_help(ctx):
     """
@@ -663,7 +668,6 @@ async def dennis_help(ctx):
         description="Here's everything I can do!",
         color=discord.Color.blue()
     )
-
     # Market Management
     embed.add_field(
         name="📊 Create & Manage Markets",
@@ -671,17 +675,14 @@ async def dennis_help(ctx):
 **!createmarket** `<question>? <option1>, <option2>, ...`
 Create a new betting market
 Example: `!createmarket Will it rain tomorrow? Yes, No`
-
 **!resolvemarket** `<market_id> <winning_outcome>`
 Resolve a market (creator only)
 Example: `!resolvemarket 1 Yes`
-
 **!listmarkets**
 Show all active betting markets
         """,
         inline=False
     )
-
     # Betting Commands
     embed.add_field(
         name="💰 Place & Accept Bets",
@@ -691,18 +692,18 @@ Create a bet offer
 - offer: amount you risk
 - ask: amount you want to win
 Example: `!offerbet 1 Yes 10 20`
-
 **!acceptbet** `<bet_id>`
 Accept an open bet offer
 Example: `!acceptbet 1`
-
+**!cancelbet** `<bet_id>`
+Cancel your open bet offer
+Example: `!cancelbet 1`
 **!listbets** `[market_id]`
 List all open bet offers, optionally filtered by market
 Example: `!listbets` or `!listbets 1`
         """,
         inline=False
     )
-
     # Personal Tracking
     embed.add_field(
         name="👤 Track Your Bets",
@@ -712,24 +713,27 @@ Show your open offers and active bets
         """,
         inline=False
     )
-
     # Usage Tips
     embed.add_field(
         name="💡 Tips",
         value="""
-• When offering a bet, the 'offer' is what you risk and the 'ask' is what you want to win
-• Betting amounts are in dollars ($)
-• You can't accept your own bets
-• Only market creators can resolve their markets
-• Keep track of your bet IDs and market IDs!
+- When offering a bet, the 'offer' is what you risk and the 'ask' is what you want to win
+- Betting amounts are in dollars ($)
+- You can't accept your own bets
+- Only market creators can resolve their markets
+- Keep track of your bet IDs and market IDs!
         """,
         inline=False
     )
-
+    
+    embed.add_field(
+        name="🔧",
+        value="**!noslop**",
+        inline=False
+    )
     embed.set_footer(text="Dennis v1.0 | Boats carried by Claude")
     
     await ctx.send(embed=embed)
-
 
 # Run the bot
 if __name__ == "__main__":
