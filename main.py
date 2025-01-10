@@ -275,6 +275,39 @@ async def accept_bet(ctx, bet_id: int):
        
        await ctx.send(embed=embed)
 
+@bot.command(name='cancelbet')
+async def cancel_bet(ctx, bet_id: int):
+    """
+    Cancel an open bet offer by removing it
+    Usage: !cancelbet <bet_id>
+    """
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Verify bet exists and user owns it
+        cursor.execute('SELECT bettor_id FROM bet_offers WHERE bet_id = ?', (bet_id,))
+        bet = cursor.fetchone()
+        
+        if not bet:
+            await ctx.send("Bet offer not found.")
+            return
+            
+        if str(ctx.author.id) != bet[0]:
+            await ctx.send("You can only cancel your own bet offers.")
+            return
+        
+        # Remove the bet offer
+        cursor.execute('DELETE FROM bet_offers WHERE bet_id = ?', (bet_id,))
+        conn.commit()
+    
+    embed = discord.Embed(
+        title="Bet Offer Cancelled",
+        description=f"Bet offer #{bet_id} has been removed.",
+        color=discord.Color.red()
+    )
+    
+    await ctx.send(embed=embed)
+
 @bot.command(name='listmarkets')
 async def list_markets(ctx):
     """List all active betting markets"""
