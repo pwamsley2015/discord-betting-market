@@ -310,6 +310,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 final_embed.add_field(name="Outcome", value=selected_option, inline=False)
                 final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
+                final_embed.add_field(name="Offered By", value=user.mention, inline=False)
                 await prompt_msg.edit(embed=final_embed)
                 
             except ValueError:
