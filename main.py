@@ -4,6 +4,7 @@ from decimal import Decimal
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
+from discord.ui import Select, View
 
 # Load environment variables
 load_dotenv()
@@ -72,6 +73,39 @@ class BettingDatabase:
                 )
             ''')
 
+class OutcomeSelect(Select):
+    def __init__(self, options):
+        # Convert market options into discord select options
+        select_options = [
+            discord.SelectOption(label=opt, value=str(i)) 
+            for i, opt in enumerate(options)
+        ]
+        super().__init__(
+            placeholder="Choose your outcome",
+            min_values=1,
+            max_values=1,
+            options=select_options
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Store the selected value and stop the view
+        self.view.selected_option = self.values[0]
+        self.view.stop()
+
+class BetView(View):
+    def __init__(self, market_data, user):
+        super().__init__(timeout=60)
+        self.market_data = market_data
+        self.user = user
+        self.selected_option = None
+        
+        # Add the select menu
+        self.add_item(OutcomeSelect(market_data['options']))
+    
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Only allow the user who reacted to use this menu
+        return interaction.user.id == self.user.id            
+
 class BettingBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -134,7 +168,7 @@ async def create_market(ctx, *, market_details):
         )
         embed.add_field(name="Market ID", value=market_id, inline=False)
         embed.add_field(name="Options", value="\n".join(options), inline=False)
-        embed.add_field(name="How to bet", value="React with 🎲 to place a bet", inline=False)
+        embed.add_field(name="How to bet", value="React with 🎲 to place a bet. (can be repeated)", inline=False)
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
@@ -174,60 +208,57 @@ async def on_raw_reaction_add(payload):
         await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
 
 async def handle_bet_offer_reaction(message, user, market_data):
-    # Create a new embed for bet creation
+    # Verify market is open first
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
+                      (market_data['market_id'],))
+        market_status = cursor.fetchone()
+        
+        if not market_status or market_status[0] != 'open':
+            await message.channel.send("This market is not open for betting.", delete_after=10)
+            return
+
     bet_embed = discord.Embed(
         title="Create Bet",
         description=f"{user.mention} is creating a bet!",
         color=discord.Color.blue()
     )
-    
-    # Add options as numbered list
-    options_text = "\n".join(f"{i+1}. {opt}" for i, opt in enumerate(market_data['options']))
     bet_embed.add_field(
         name="Step 1: Choose your option",
-        value=f"Reply with the number of your chosen option:\n{options_text}",
+        value="Use the dropdown menu below to select your outcome",
         inline=False
     )
     
+    # Create view with select menu
+    view = BetView(market_data, user)
+    
     # Send in the same channel as the original message
-    prompt_msg = await message.channel.send(embed=bet_embed)
+    prompt_msg = await message.channel.send(embed=bet_embed, view=view)
     
-    # Wait for their response
-    def check(m):
-        return m.author == user and m.channel == message.channel
+    # Wait for selection
+    await view.wait()
     
-    try:
-        # Get option selection
-        option_msg = await bot.wait_for('message', check=check, timeout=60.0)
+    if view.selected_option is None:
+        await message.channel.send("Bet creation timed out.", delete_after=10)
+        await prompt_msg.delete()
+        return
         
-        try:
-            selected_index = int(option_msg.content) - 1
-            if 0 <= selected_index < len(market_data['options']):
-                selected_option = market_data['options'][selected_index]
-                
-                # Verify market is open
-                with bot.db.get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
-                                 (market_data['market_id'],))
-                    market_status = cursor.fetchone()
-                    
-                    if not market_status or market_status[0] != 'open':
-                        await message.channel.send("This market is not open for betting.", delete_after=10)
-                        return
-                
-                # Ask for bet amount
-                amount_embed = discord.Embed(
-                    title="Create Bet",
-                    description=f"Selected: {selected_option}",
-                    color=discord.Color.blue()
-                )
-                amount_embed.add_field(
-                    name="Step 2: Risk Amount",
-                    value="How much would you like to risk? (in $)",
-                    inline=False
-                )
-                await prompt_msg.edit(embed=amount_embed)
+    selected_index = int(view.selected_option)
+    selected_option = market_data['options'][selected_index]
+    
+    # Continue with amount collection...
+    amount_embed = discord.Embed(
+        title="Create Bet",
+        description=f"Selected: {selected_option}",
+        color=discord.Color.blue()
+    )
+    amount_embed.add_field(
+        name="Step 2: Risk Amount",
+        value="How much would you like to risk? (in $)",
+        inline=False
+    )
+    await prompt_msg.edit(embed=amount_embed, view=None)  # Remove the view
                 
                 # Get amount
                 amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
