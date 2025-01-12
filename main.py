@@ -205,6 +205,17 @@ async def handle_bet_offer_reaction(message, user, market_data):
             if 0 <= selected_index < len(market_data['options']):
                 selected_option = market_data['options'][selected_index]
                 
+                # Verify market is open
+                with bot.db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
+                                 (market_data['market_id'],))
+                    market_status = cursor.fetchone()
+                    
+                    if not market_status or market_status[0] != 'open':
+                        await message.channel.send("This market is not open for betting.", delete_after=10)
+                        return
+                
                 # Ask for bet amount
                 amount_embed = discord.Embed(
                     title="Create Bet",
@@ -212,7 +223,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     color=discord.Color.blue()
                 )
                 amount_embed.add_field(
-                    name="Step 2: Bet Amount",
+                    name="Step 2: Risk Amount",
                     value="How much would you like to risk? (in $)",
                     inline=False
                 )
@@ -221,12 +232,12 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 # Get amount
                 amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
                 try:
-                    risk_amount = float(amount_msg.content)
+                    offer_amount = float(amount_msg.content)
                     
                     # Ask for desired winnings
                     winnings_embed = discord.Embed(
                         title="Create Bet",
-                        description=f"Selected: {selected_option}\nRisk Amount: ${risk_amount}",
+                        description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
                         color=discord.Color.blue()
                     )
                     winnings_embed.add_field(
@@ -239,31 +250,30 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     # Get desired winnings
                     winnings_msg = await bot.wait_for('message', check=check, timeout=60.0)
                     try:
-                        win_amount = float(winnings_msg.content)
+                        ask_amount = float(winnings_msg.content)
                         
-                        # Create the bet in the database
+                        # Create the bet offer in the database
                         with bot.db.get_connection() as conn:
                             cursor = conn.cursor()
                             cursor.execute('''
-                                INSERT INTO bets (market_id, bettor_id, outcome_id, risk_amount, win_amount)
-                                SELECT ?, ?, mo.outcome_id, ?, ?
-                                FROM market_outcomes mo
-                                WHERE mo.market_id = ? AND mo.outcome_name = ?
-                            ''', (market_data['market_id'], str(user.id), risk_amount, win_amount, 
-                                 market_data['market_id'], selected_option))
+                                INSERT INTO bet_offers 
+                                (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (market_data['market_id'], str(user.id), selected_option, 
+                                 offer_amount, ask_amount, None))
                             bet_id = cursor.lastrowid
                             conn.commit()
                         
                         # Show final confirmation
                         final_embed = discord.Embed(
-                            title="Bet Created!",
-                            description=f"Bet ID: {bet_id}",
+                            title="Bet Offered!",
                             color=discord.Color.green()
                         )
-                        final_embed.add_field(name="Option", value=selected_option, inline=False)
-                        final_embed.add_field(name="Risk Amount", value=f"${risk_amount}", inline=True)
-                        final_embed.add_field(name="To Win", value=f"${win_amount}", inline=True)
-                        final_embed.add_field(name="Status", value="Waiting for someone to accept", inline=False)
+                        final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
+                        final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
+                        final_embed.add_field(name="Outcome", value=selected_option, inline=False)
+                        final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
+                        final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
                         await prompt_msg.edit(embed=final_embed)
                         
                     except ValueError:
