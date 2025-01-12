@@ -168,7 +168,7 @@ async def create_market(ctx, *, market_details):
         )
         embed.add_field(name="Market ID", value=market_id, inline=False)
         embed.add_field(name="Options", value="\n".join(options), inline=False)
-        embed.add_field(name="How to bet", value="React with 🎲 to place a bet. (can be repeated)", inline=False)
+        embed.add_field(name="Offer bet:", value="React with 🎲 to offer a bet. (can be repeated)", inline=False)
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
@@ -208,119 +208,140 @@ async def on_raw_reaction_add(payload):
         await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
 
 async def handle_bet_offer_reaction(message, user, market_data):
-    # Verify market is open first
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
-                      (market_data['market_id'],))
-        market_status = cursor.fetchone()
-        
-        if not market_status or market_status[0] != 'open':
-            await message.channel.send("This market is not open for betting.", delete_after=10)
-            return
+   # Verify market is open first
+   with bot.db.get_connection() as conn:
+       cursor = conn.cursor()
+       cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
+                     (market_data['market_id'],))
+       market_status = cursor.fetchone()
+       
+       if not market_status or market_status[0] != 'open':
+           await message.channel.send("This market is not open for betting.", delete_after=10)
+           return
 
-    bet_embed = discord.Embed(
-        title="Create Bet",
-        description=f"{user.mention} is creating a bet!",
-        color=discord.Color.blue()
-    )
-    bet_embed.add_field(
-        name="Step 1: Choose your option",
-        value="Use the dropdown menu below to select your outcome",
-        inline=False
-    )
-    
-    # Create view with select menu
-    view = BetView(market_data, user)
-    
-    # Send in the same channel as the original message
-    prompt_msg = await message.channel.send(embed=bet_embed, view=view)
-    
-    # Wait for selection
-    await view.wait()
-    
-    if view.selected_option is None:
-        await message.channel.send("Bet creation timed out.", delete_after=10)
-        await prompt_msg.delete()
-        return
-        
-    selected_index = int(view.selected_option)
-    selected_option = market_data['options'][selected_index]
-    
-    # Ask for bet amount
-    amount_embed = discord.Embed(
-        title="Create Bet",
-        description=f"Selected: {selected_option}",
-        color=discord.Color.blue()
-    )
-    amount_embed.add_field(
-        name="Step 2: Risk Amount",
-        value="How much would you like to risk? (in $)",
-        inline=False
-    )
-    await prompt_msg.edit(embed=amount_embed, view=None)
-    
-    # Wait for their response
-    def check(m):
-        return m.author == user and m.channel == message.channel
-    
-    try:
-        # Get amount
-        amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
-        try:
-            offer_amount = float(amount_msg.content)
-            
-            # Ask for desired winnings
-            winnings_embed = discord.Embed(
-                title="Create Bet",
-                description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
-                color=discord.Color.blue()
-            )
-            winnings_embed.add_field(
-                name="Step 3: Desired Winnings",
-                value="How much would you like to win? (in $)",
-                inline=False
-            )
-            await prompt_msg.edit(embed=winnings_embed)
-            
-            # Get desired winnings
-            winnings_msg = await bot.wait_for('message', check=check, timeout=60.0)
-            try:
-                ask_amount = float(winnings_msg.content)
-                
-                # Create the bet offer in the database
-                with bot.db.get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT INTO bet_offers 
-                        (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (market_data['market_id'], str(user.id), selected_option, 
-                         offer_amount, ask_amount, None))
-                    bet_id = cursor.lastrowid
-                    conn.commit()
-                
-                # Show final confirmation
-                final_embed = discord.Embed(
-                    title="Bet Offered!",
-                    color=discord.Color.green()
-                )
-                final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
-                final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
-                final_embed.add_field(name="Outcome", value=selected_option, inline=False)
-                final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
-                final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
-                final_embed.add_field(name="Offered By", value=user.mention, inline=False)
-                await prompt_msg.edit(embed=final_embed)
-                
-            except ValueError:
-                await message.channel.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
-                
-        except ValueError:
-            await message.channel.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
-            
-    except asyncio.TimeoutError:
-        await message.channel.send("Bet creation timed out.", delete_after=10)
+   bet_embed = discord.Embed(
+       title="Create Bet",
+       description=f"{user.mention} is creating a bet!",
+       color=discord.Color.blue()
+   )
+   bet_embed.add_field(
+       name="Step 1: Choose your option",
+       value="Use the dropdown menu below to select your outcome",
+       inline=False
+   )
+   
+   # Create view with select menu
+   view = BetView(market_data, user)
+   
+   # Send in the same channel as the original message
+   prompt_msg = await message.channel.send(embed=bet_embed, view=view)
+   
+   # Wait for selection
+   await view.wait()
+   
+   if view.selected_option is None:
+       await message.channel.send("Bet creation timed out.", delete_after=10)
+       await prompt_msg.delete()
+       return
+       
+   selected_index = int(view.selected_option)
+   selected_option = market_data['options'][selected_index]
+
+   # Ask for target user
+   target_embed = discord.Embed(
+       title="Create Bet",
+       description=f"Selected: {selected_option}",
+       color=discord.Color.blue()
+   )
+   target_embed.add_field(
+       name="Step 2: Target User (Optional)",
+       value="Mention a user to offer this bet to them specifically, or type 'skip' to offer to anyone",
+       inline=False
+   )
+   await prompt_msg.edit(embed=target_embed, view=None)
+
+   # Wait for their response
+   def check(m):
+       return m.author == user and m.channel == message.channel
+
+   try:
+       # Get target user
+       target_msg = await bot.wait_for('message', check=check, timeout=60.0)
+       target_user = None
+       if target_msg.content.lower() != 'skip' and len(target_msg.mentions) > 0:
+           target_user = target_msg.mentions[0]
+       
+       # Ask for bet amount
+       amount_embed = discord.Embed(
+           title="Create Bet",
+           description=f"Selected: {selected_option}",
+           color=discord.Color.blue()
+       )
+       amount_embed.add_field(
+           name="Step 3: Risk Amount",
+           value="How much would you like to risk? (in $)",
+           inline=False
+       )
+       await prompt_msg.edit(embed=amount_embed)
+       
+       # Get amount
+       amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
+       try:
+           offer_amount = float(amount_msg.content)
+           
+           # Ask for desired winnings
+           winnings_embed = discord.Embed(
+               title="Create Bet",
+               description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
+               color=discord.Color.blue()
+           )
+           winnings_embed.add_field(
+               name="Step 4: Desired Winnings",
+               value="How much would you like to win? (in $)",
+               inline=False
+           )
+           await prompt_msg.edit(embed=winnings_embed)
+           
+           # Get desired winnings
+           winnings_msg = await bot.wait_for('message', check=check, timeout=60.0)
+           try:
+               ask_amount = float(winnings_msg.content)
+               
+               # Create the bet offer in the database
+               with bot.db.get_connection() as conn:
+                   cursor = conn.cursor()
+                   cursor.execute('''
+                       INSERT INTO bet_offers 
+                       (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                   ''', (market_data['market_id'], str(user.id), selected_option, 
+                        offer_amount, ask_amount, str(target_user.id) if target_user else None))
+                   bet_id = cursor.lastrowid
+                   conn.commit()
+               
+               # Show final confirmation
+               final_embed = discord.Embed(
+                   title="Bet Offered!",
+                   color=discord.Color.green()
+               )
+               final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
+               final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
+               final_embed.add_field(name="Outcome", value=selected_option, inline=False)
+               final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
+               final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
+               final_embed.add_field(name="Offered By", value=user.mention, inline=False)
+               if target_user:
+                   final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
+               await prompt_msg.edit(embed=final_embed)
+               
+           except ValueError:
+               await message.channel.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
+               
+       except ValueError:
+           await message.channel.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
+           
+   except asyncio.TimeoutError:
+       await message.channel.send("Bet creation timed out.", delete_after=10)
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):
     """
