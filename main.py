@@ -208,10 +208,80 @@ async def on_raw_reaction_add(payload):
     if message.id in bot.active_markets and str(payload.emoji) == "🎲":
         await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
 
-    # Check if this is a bet acceptance
-    elif message.id in bot.active_bets and str(payload.emoji) == "✅":
+   # Check if this is a bet acceptance or explanation
+    elif message.id in bot.active_bets:
         bet_id = bot.active_bets[message.id]
-        await handle_bet_acceptance(message, user, bet_id)
+        if str(payload.emoji) == "✅":
+            await handle_bet_acceptance(message, user, bet_id)
+        elif str(payload.emoji) == "❔":
+            await handle_bet_explanation(message, user, bet_id)
+
+async def handle_bet_explanation(message, user, bet_id):
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get bet details
+        cursor.execute('''
+            SELECT b.bettor_id, b.outcome, b.offer_amount, b.ask_amount, 
+                   b.target_user_id, m.title, m.market_id
+            FROM bet_offers b
+            JOIN markets m ON b.market_id = m.market_id
+            WHERE b.bet_id = ?
+        ''', (bet_id,))
+        
+        bet = cursor.fetchone()
+        if not bet:
+            await message.channel.send("Bet not found.", delete_after=10)
+            return
+            
+        bettor_id, outcome, offer, ask, target_id, title, market_id = bet
+        
+        # Get all possible outcomes for this market
+        cursor.execute('''
+            SELECT outcome_name 
+            FROM market_outcomes 
+            WHERE market_id = ?
+        ''', (market_id,))
+        outcomes = [row[0] for row in cursor.fetchall()]
+
+    # Create explanation embed
+    embed = discord.Embed(
+        title=f"Bet #{bet_id} Explained",
+        description=f"Market: {title}",
+        color=discord.Color.blue()
+    )
+    
+    # Get user names
+    bettor = await bot.fetch_user(int(bettor_id))
+    bettor_name = bettor.name if bettor else "Unknown"
+    
+    target_name = "anyone"
+    if target_id:
+        target = await bot.fetch_user(int(target_id))
+        target_name = target.name if target else "Unknown"
+    
+    # Explain what happens for each outcome
+    explanation = "If accepted:\n"
+    for possible_outcome in outcomes:
+        if possible_outcome == outcome:
+            explanation += f"- If \"{possible_outcome}\": {bettor_name} wins ${ask}, acceptor loses ${ask}\n"
+        else:
+            explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer}, acceptor wins ${offer}\n"
+    
+    embed.add_field(
+        name="Mechanics", 
+        value=explanation,
+        inline=False
+    )
+    
+    # Add who can accept
+    embed.add_field(
+        name="Who can accept?",
+        value=f"This bet can be accepted by {target_name}",
+        inline=False
+    )
+    
+    await message.channel.send(embed=embed)
 
 async def handle_bet_offer_reaction(message, user, market_data):
     # List to store messages we'll want to clean up
@@ -342,9 +412,10 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
                 final_embed.add_field(name="Offered By", value=user.mention, inline=False)
-                final_embed.add_field(name="How to Accept", value="React ✅ to accept this bet.", inline=False)
+                final_embed.add_field(name="Reacts:", value="✅ to accept this bet. ❔for explanation.", inline=False)
 
                 await prompt_msg.add_reaction("✅")
+                await prompt_msg.add_reaction("❔")
                 # Store in active bets for reaction handling
                 bot.active_bets = getattr(bot, 'active_bets', {})
                 bot.active_bets[prompt_msg.id] = bet_id
