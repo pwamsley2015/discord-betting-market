@@ -342,6 +342,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
                 final_embed.add_field(name="Offered By", value=user.mention, inline=False)
+                final_embed.add_field(name="How to Accept", value="React ✅ to accept this bet.", inline=False)
 
                 await prompt_msg.add_reaction("✅")
                 # Store in active bets for reaction handling
@@ -452,7 +453,7 @@ async def handle_bet_acceptance(message, user, bet_id):
         
         # Remove from active bets
         bot.active_bets.pop(message.id, None)
-                
+
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):
     """
