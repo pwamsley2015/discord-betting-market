@@ -169,7 +169,7 @@ async def create_market(ctx, *, market_details):
         )
         embed.add_field(name="Market ID", value=market_id, inline=False)
         embed.add_field(name="Options", value="\n".join(options), inline=False)
-        embed.add_field(name="Offer bet:", value="React with 🎲 to offer a bet. (can be repeated)", inline=False)
+        embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
@@ -185,7 +185,7 @@ async def create_market(ctx, *, market_details):
         conn.commit()
         
         # Add the betting reaction
-        await message.add_reaction("🎲")
+        await message.add_reaction("<:dennis:1328277972612026388>")
         
         # Store message ID and market details for reaction handling
         bot.active_markets[message.id] = {
@@ -205,7 +205,7 @@ async def on_raw_reaction_add(payload):
     user = await bot.fetch_user(payload.user_id)
     
     # Check if this is a betting reaction on a market message
-    if message.id in bot.active_markets and str(payload.emoji) == "🎲":
+    if message.id in bot.active_markets and str(payload.emoji) == "<:dennis:1328277972612026388>":
         await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
 
    # Check if this is a bet acceptance or explanation
