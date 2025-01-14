@@ -110,68 +110,66 @@ class BettingBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.reactions = True
         super().__init__(command_prefix='!', intents=intents)
         self.db = BettingDatabase()
-        self.active_markets = {}
-        self.active_bets = {}
 
     async def setup_hook(self):
         print(f'Setting up {self.user} (ID: {self.user.id})')
+        
+        # Initialize active markets and bets dictionaries
+        self.active_markets = {}
+        self.active_bets = {}
+        
+        # Load active markets
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get all open markets with their message IDs
+            cursor.execute('''
+                SELECT market_id, discord_message_id, title 
+                FROM markets 
+                WHERE status = 'open' 
+                AND discord_message_id IS NOT NULL
+            ''')
+            open_markets = cursor.fetchall()
+            
+            for market_id, message_id, title in open_markets:
+                # Get market options
+                cursor.execute('''
+                    SELECT outcome_name 
+                    FROM market_outcomes 
+                    WHERE market_id = ?
+                ''', (market_id,))
+                options = [row[0] for row in cursor.fetchall()]
+                
+                # Store in active_markets
+                self.active_markets[int(message_id)] = {
+                    'market_id': market_id,
+                    'options': options
+                }
+                print(f"Loaded active market: {title}")
+                
+            # Get all open bet offers with their message IDs
+            cursor.execute('''
+                SELECT bet_id, discord_message_id 
+                FROM bet_offers 
+                WHERE status = 'open' 
+                AND discord_message_id IS NOT NULL
+            ''')
+            open_bets = cursor.fetchall()
+            
+            for bet_id, message_id in open_bets:
+                # Store in active_bets
+                self.active_bets[int(message_id)] = bet_id
+                print(f"Loaded active bet: {bet_id}")
+                
+        print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
+        await self.get_channel(1323570050556497950).send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
+
 
 bot = BettingBot()
 
-async def setup_hook(self):
-    print(f'Setting up {self.user} (ID: {self.user.id})')
-    
-    # Initialize active markets and bets dictionaries
-    self.active_markets = {}
-    self.active_bets = {}
-    
-    # Load active markets
-    with self.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get all open markets with their message IDs
-        cursor.execute('''
-            SELECT market_id, discord_message_id, title 
-            FROM markets 
-            WHERE status = 'open' 
-            AND discord_message_id IS NOT NULL
-        ''')
-        open_markets = cursor.fetchall()
-        
-        for market_id, message_id, title in open_markets:
-            # Get market options
-            cursor.execute('''
-                SELECT outcome_name 
-                FROM market_outcomes 
-                WHERE market_id = ?
-            ''', (market_id,))
-            options = [row[0] for row in cursor.fetchall()]
-            
-            # Store in active_markets
-            self.active_markets[int(message_id)] = {
-                'market_id': market_id,
-                'options': options
-            }
-            print(f"Loaded active market: {title}")
-            
-        # Get all open bet offers with their message IDs
-        cursor.execute('''
-            SELECT bet_id, discord_message_id 
-            FROM bet_offers 
-            WHERE status = 'open' 
-            AND discord_message_id IS NOT NULL
-        ''')
-        open_bets = cursor.fetchall()
-        
-        for bet_id, message_id in open_bets:
-            # Store in active_bets
-            self.active_bets[int(message_id)] = bet_id
-            print(f"Loaded active bet: {bet_id}")
-            
-    print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
-    await self.get_channel(1323570050556497950).send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
 
 @bot.event
 async def on_ready():
@@ -491,7 +489,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     conn.commit()
                 
                 # Show final confirmation
-                final_embed = discord.Embed(
+                final_embed = discord.Embed(o
                     title="Bet Offered!",
                     color=discord.Color.green()
                 )
