@@ -489,10 +489,11 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     conn.commit()
                 
                 # Show final confirmation
-                final_embed = discord.Embed(o
+                final_embed = discord.Embed(
                     title="Bet Offered!",
                     color=discord.Color.green()
                 )
+                
                 final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
                 final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
                 final_embed.add_field(name="Outcome", value=selected_option, inline=False)
