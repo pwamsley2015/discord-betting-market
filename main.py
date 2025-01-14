@@ -120,6 +120,59 @@ class BettingBot(commands.Bot):
 
 bot = BettingBot()
 
+async def setup_hook(self):
+    print(f'Setting up {self.user} (ID: {self.user.id})')
+    
+    # Initialize active markets and bets dictionaries
+    self.active_markets = {}
+    self.active_bets = {}
+    
+    # Load active markets
+    with self.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get all open markets with their message IDs
+        cursor.execute('''
+            SELECT market_id, discord_message_id, title 
+            FROM markets 
+            WHERE status = 'open' 
+            AND discord_message_id IS NOT NULL
+        ''')
+        open_markets = cursor.fetchall()
+        
+        for market_id, message_id, title in open_markets:
+            # Get market options
+            cursor.execute('''
+                SELECT outcome_name 
+                FROM market_outcomes 
+                WHERE market_id = ?
+            ''', (market_id,))
+            options = [row[0] for row in cursor.fetchall()]
+            
+            # Store in active_markets
+            self.active_markets[int(message_id)] = {
+                'market_id': market_id,
+                'options': options
+            }
+            print(f"Loaded active market: {title}")
+            
+        # Get all open bet offers with their message IDs
+        cursor.execute('''
+            SELECT bet_id, discord_message_id 
+            FROM bet_offers 
+            WHERE status = 'open' 
+            AND discord_message_id IS NOT NULL
+        ''')
+        open_bets = cursor.fetchall()
+        
+        for bet_id, message_id in open_bets:
+            # Store in active_bets
+            self.active_bets[int(message_id)] = bet_id
+            print(f"Loaded active bet: {bet_id}")
+            
+    print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
+    await self.get_channel(1323570050556497950).send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
+
 @bot.event
 async def on_ready():
     print(f'Dennis is logged in and ready!')
@@ -429,10 +482,11 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     cursor = conn.cursor()
                     cursor.execute('''
                         INSERT INTO bet_offers 
-                        (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (market_data['market_id'], str(user.id), selected_option, 
-                         offer_amount, ask_amount, str(target_user.id) if target_user else None))
+                         offer_amount, ask_amount, str(target_user.id) if target_user else None, 
+                         str(prompt_msg.id)))
                     bet_id = cursor.lastrowid
                     conn.commit()
                 
