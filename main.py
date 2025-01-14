@@ -104,8 +104,8 @@ class BetView(View):
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         # Only allow the user who reacted to use this menu
-        return interaction.user.id == self.user.id   
-                 
+        return interaction.user.id == self.user.id            
+
 class BettingBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -165,12 +165,8 @@ class BettingBot(commands.Bot):
                 print(f"Loaded active bet: {bet_id}")
                 
         print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
+        await self.get_channel(1323570050556497950).send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
 
-    async def on_ready(self):
-        print(f'{self.user} has connected to Discord!')
-        channel = self.get_channel(1323570050556497950)
-        if channel:
-            await channel.send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
 
 bot = BettingBot()
 
