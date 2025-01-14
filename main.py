@@ -165,8 +165,6 @@ class BettingBot(commands.Bot):
                 print(f"Loaded active bet: {bet_id}")
                 
         print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
-        await self.get_channel(1323570050556497950).send(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
-
 
 bot = BettingBot()
 
@@ -493,7 +491,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     title="Bet Offered!",
                     color=discord.Color.green()
                 )
-                
+
                 final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
                 final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
                 final_embed.add_field(name="Outcome", value=selected_option, inline=False)
