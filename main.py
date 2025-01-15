@@ -351,8 +351,19 @@ async def handle_bet_explanation(message, user, bet_id):
         else:
             explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer}, acceptor wins ${offer}\n"
     
+    # Add equity explanation based on whether it's a bribe/gift
+    if ask == 0:
+        equity_explanation = "This is a free bet for the acceptor - they risk nothing to win money."
+    elif offer == 0:
+        equity_explanation = "This is a pure gift from the bettor - they give money with no chance of return."
+    else:
+        equity_needed = (ask / (ask + offer)) * 100
+        equity_explanation = f"For this bet to be >=EV0, you need to believe you have {equity_needed:.1f}% equity."
+
+    explanation += f"\n{equity_explanation}"
+    
     embed.add_field(
-        name="Mechanics", 
+        name="Pot odds", 
         value=explanation,
         inline=False
     )
