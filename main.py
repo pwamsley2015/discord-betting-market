@@ -218,6 +218,10 @@ async def create_market(ctx, *, market_details):
         embed.add_field(name="Market ID", value=market_id, inline=False)
         embed.add_field(name="Options", value="\n".join(options), inline=False)
         embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
+        embed.add_field(name="Set resolver:", value="🇷 (creator is default)", inline=False)
+        embed.add_field(name="Set timer:", value="⏲️", inline=False)
+
+
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
