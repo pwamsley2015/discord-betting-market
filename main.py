@@ -358,7 +358,7 @@ async def handle_bet_explanation(message, user, bet_id):
         equity_explanation = "This is a pure gift from the bettor - they give money with no chance of return."
     else:
         equity_needed = (ask / (ask + offer)) * 100
-        equity_explanation = f"For this bet to be >=EV0, you need to believe you have {equity_needed:.1f}% equity."
+        equity_explanation = f"For this bet to be EV0, you need {equity_needed:.1f}% equity."
 
     explanation += f"\n{equity_explanation}"
     
