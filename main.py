@@ -212,8 +212,7 @@ async def create_market(ctx, *, market_details):
             ''', (market_id, option))
         
         embed = discord.Embed(
-            title="New Betting Market Created!",
-            description=title,
+            title=title,
             color=discord.Color.green()
         )
         embed.add_field(name="Market ID", value=market_id, inline=False)
