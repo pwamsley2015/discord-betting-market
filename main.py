@@ -508,11 +508,15 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
                 final_embed.add_field(name="Offered By", value=user.mention, inline=False)
-                final_embed.add_field(name="Reacts:", value="✅ to accept this bet. ❌ to cancel bet. ❔for explanation.", inline=False)
+                final_embed.add_field(name="Reacts:", value="✅ to accept this bet. ❌ to cancel bet. ❔for explanation. 📉 if you think a bet is giving bad odds, 🤏 if a bet is too small, <:monkaS:814271443327123466> if it's too big.", inline=False)
 
                 await prompt_msg.add_reaction("✅")
                 await prompt_msg.add_reaction("❔")
                 await prompt_msg.add_reaction("❌")
+                await prompt_msg.add_reaction("📉")
+                await prompt_msg.add_reaction("🤏")
+                await prompt_msg.add_reaction("<:monkaS:814271443327123466>")
+
                 # Store in active bets for reaction handling
                 bot.active_bets = getattr(bot, 'active_bets', {})
                 bot.active_bets[prompt_msg.id] = bet_id
