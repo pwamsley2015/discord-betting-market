@@ -255,7 +255,7 @@ async def on_raw_reaction_add(payload):
     user = await bot.fetch_user(payload.user_id)
     
     # Check if this is a betting reaction on a market message
-    if message.id in bot.active_markets 
+    if message.id in bot.active_markets: 
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
         elif str(payload.emoji) == "𝐑":
