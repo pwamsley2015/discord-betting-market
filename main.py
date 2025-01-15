@@ -883,7 +883,7 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
             inline=False
         )
 
-        embed.add_field(name="🤝", value="Please confirm when payment is settled.", inline=False)
+        embed.add_field(name="🤝", value="React 🤝 to confirm when payment is settled.", inline=False)
     
     await ctx.send(embed=embed)
 
