@@ -234,8 +234,8 @@ async def create_market(ctx, *, market_details):
         
         # Add the betting reaction
         await message.add_reaction("<:dennis:1328277972612026388>")
-        await message.add_reaction("𝐑")
-        await message.add_reaction("⏲")
+        await message.add_reaction("🇷")
+        await message.add_reaction("⏲️")
         
         # Store message ID and market details for reaction handling
         bot.active_markets[message.id] = {
@@ -258,9 +258,9 @@ async def on_raw_reaction_add(payload):
     if message.id in bot.active_markets: 
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
-        elif str(payload.emoji) == "𝐑":
+        elif str(payload.emoji) == "🇷":
             await handle_set_market_resolver(message)
-        elif str(payload.emoji == "⏲"):
+        elif str(payload.emoji == "⏲️"):
             await handle_set_market_timer(message)
 
    # Check if this is a bet acceptance or explanation
