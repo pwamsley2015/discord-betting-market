@@ -267,7 +267,7 @@ async def on_raw_reaction_add(payload):
         elif str(payload.emoji) == "🇷":
             await handle_set_market_resolver(message, user)
         elif str(payload.emoji == "⏲️"):
-            await handle_set_market_timer(message)
+            await handle_set_market_timer(message, user)
 
    # Check if this is a bet acceptance or explanation
     elif message.id in bot.active_bets:
