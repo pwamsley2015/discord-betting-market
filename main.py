@@ -281,19 +281,20 @@ async def handle_set_market_timer(message):
     await message.channel.send("timer set (jk haven't implemented yet)")
 
 async def handle_set_market_resolver(message, user):
+    if message.id not in bot.active_markets:
+        await message.channel.send("Error: This message is not an active market.")
+        return
+
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
-
-         # Debug print
-        print(f"Message ID: {message.id}")
-        print(f"Active Markets: {bot.active_markets}")
         
-        # Get market info using the market ID from bot.active_markets
-        market_id = bot.active_markets[message.id]
+        market_data = bot.active_markets[message.id]
+        market_id = market_data['market_id']
+        
         cursor.execute('''
             SELECT creator_id, status
             FROM markets 
-            WHERE market_id = ?
+            WHERE market_id = ?  # <-- Query by market_id instead
         ''', (market_id,))
         market = cursor.fetchone()
         
@@ -304,10 +305,9 @@ async def handle_set_market_resolver(message, user):
         creator_id, status = market
         
         # Verify the user is the creator
-        if str(user.id) != str(creator_id):  # Changed from message.author to user
+        if str(user.id) != str(creator_id):
             await message.channel.send("Only the market creator can set the resolver.")
             return
-            
         if status != 'open':
             await message.channel.send("Cannot modify a closed or resolved market.")
             return
