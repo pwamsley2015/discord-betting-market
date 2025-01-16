@@ -285,7 +285,7 @@ async def handle_set_market_resolver(message, user):
         cursor = conn.cursor()
         
         # Get market info using the market ID from bot.active_markets
-        market_id = bot.active_markets[message.id]  # This uses the in-memory mapping
+        market_id = bot.active_markets[message.id]
         cursor.execute('''
             SELECT creator_id, status
             FROM markets 
@@ -300,7 +300,7 @@ async def handle_set_market_resolver(message, user):
         creator_id, status = market
         
         # Verify the user is the creator
-        if str(user.id) != str(creator_id):
+        if str(user.id) != str(creator_id):  # Changed from message.author to user
             await message.channel.send("Only the market creator can set the resolver.")
             return
             
@@ -332,11 +332,10 @@ async def handle_set_market_resolver(message, user):
         except asyncio.TimeoutError:
             await message.channel.send("Timed out waiting for resolver selection.")
         finally:
-            # Clean up the prompt message
             try:
                 await prompt_msg.delete()
             except:
-                pass  # Ignore if message already deleted
+                pass
 
 async def handle_bet_cancellation(message, user, bet_id):
     with bot.db.get_connection() as conn:
