@@ -747,7 +747,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 
                 # Show final confirmation
                 final_embed = discord.Embed(
-                    title="${user.mention} offering ${selected_option}",
+                    title=f"${user.mention} offering ${selected_option}",
                     color=discord.Color.green()
                 )
 
