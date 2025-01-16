@@ -281,7 +281,58 @@ async def handle_set_market_timer(message):
     await message.channel.send("timer set (jk haven't implemented yet)")
 
 async def handle_set_market_resolver(message):
-    await message.channel.send("ok I'll get to it alright, chill")
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get market info and verify user is creator
+        cursor.execute('''
+            SELECT market_id, creator_id, status
+            FROM markets 
+            WHERE message_id = ?
+        ''', (message.id,))
+        market = cursor.fetchone()
+        
+        if not market:
+            await message.channel.send("Error: Market not found.")
+            return
+            
+        market_id, creator_id, status = market
+        
+        # Verify the user is the creator
+        if str(message.author.id) != str(creator_id):
+            await message.channel.send("Only the market creator can set the resolver.")
+            return
+            
+        if status != 'open':
+            await message.channel.send("Cannot modify a closed or resolved market.")
+            return
+
+        # Send message asking to mention the resolver
+        prompt_msg = await message.channel.send("Please mention the user you want to set as resolver.")
+        
+        try:
+            # Wait for the creator's response mentioning the resolver
+            def check(m):
+                return m.author.id == message.author.id and len(m.mentions) > 0
+                
+            response = await bot.wait_for('message', check=check, timeout=30.0)
+            resolver = response.mentions[0]
+            
+            # Update the database
+            cursor.execute('''
+                UPDATE markets
+                SET resolver_id = ?
+                WHERE market_id = ?
+            ''', (str(resolver.id), market_id))
+            conn.commit()
+            
+            await message.channel.send(f"{resolver.mention} has been set as the resolver for this market.")
+            
+        except asyncio.TimeoutError:
+            await message.channel.send("Timed out waiting for resolver selection.")
+        finally:
+            # Clean up the prompt message
+            await prompt_msg.delete()
 
 async def handle_bet_cancellation(message, user, bet_id):
     with bot.db.get_connection() as conn:
@@ -775,19 +826,18 @@ async def list_bets(ctx, market_id: int = None):
     
     await ctx.send(embed=embed)
 
-@bot.command(name='resolvemarket')
 async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
     """
     Resolve a betting market with the winning outcome
     Usage: !resolvemarket <market_id> <winning_outcome>
-    Only the market creator can resolve their markets.
+    Only the market creator or designated resolver can resolve markets.
     """
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
         
-        # Check if market exists and user is the creator
+        # Check if market exists and user is authorized
         cursor.execute('''
-            SELECT title, status, creator_id
+            SELECT title, status, creator_id, resolver_id
             FROM markets
             WHERE market_id = ?
         ''', (market_id,))
@@ -797,12 +847,12 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
             await ctx.send("Market not found.")
             return
         
-        title, status, creator_id = market
+        title, status, creator_id, resolver_id = market
 
-        # Verify the user is the creator
-        if creator_id is not None:
-            if str(ctx.author.id) != str(creator_id):
-                await ctx.send("Only the market creator can resolve this market.")
+        # Verify the user is either the creator or resolver
+        if creator_id is not None and resolver_id is not None:
+            if str(ctx.author.id) != str(creator_id) and str(ctx.author.id) != str(resolver_id):
+                await ctx.send("Only the market creator or designated resolver can resolve this market.")
                 return
         
         if status == 'resolved':
