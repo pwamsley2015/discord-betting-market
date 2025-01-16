@@ -294,7 +294,7 @@ async def handle_set_market_resolver(message, user):
         cursor.execute('''
             SELECT creator_id, status
             FROM markets 
-            WHERE market_id = ?  # <-- Query by market_id instead
+            WHERE market_id = ?
         ''', (market_id,))
         market = cursor.fetchone()
         
