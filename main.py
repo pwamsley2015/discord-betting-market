@@ -284,19 +284,20 @@ async def handle_set_market_resolver(message):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
         
-        # Get market info and verify user is creator
+        # Get market info using the market ID from bot.active_markets
+        market_id = bot.active_markets[message.id]  # This uses the in-memory mapping
         cursor.execute('''
-            SELECT market_id, creator_id, status
+            SELECT creator_id, status
             FROM markets 
-            WHERE message_id = ?
-        ''', (message.id,))
+            WHERE market_id = ?
+        ''', (market_id,))
         market = cursor.fetchone()
         
         if not market:
             await message.channel.send("Error: Market not found.")
             return
             
-        market_id, creator_id, status = market
+        creator_id, status = market
         
         # Verify the user is the creator
         if str(message.author.id) != str(creator_id):
@@ -313,7 +314,7 @@ async def handle_set_market_resolver(message):
         try:
             # Wait for the creator's response mentioning the resolver
             def check(m):
-                return m.author.id == message.author.id and len(m.mentions) > 0
+                return m.author.id == message.author.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
                 
             response = await bot.wait_for('message', check=check, timeout=30.0)
             resolver = response.mentions[0]
@@ -332,7 +333,10 @@ async def handle_set_market_resolver(message):
             await message.channel.send("Timed out waiting for resolver selection.")
         finally:
             # Clean up the prompt message
-            await prompt_msg.delete()
+            try:
+                await prompt_msg.delete()
+            except:
+                pass  # Ignore if message already deleted
 
 async def handle_bet_cancellation(message, user, bet_id):
     with bot.db.get_connection() as conn:
