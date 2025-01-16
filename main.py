@@ -7,6 +7,7 @@ from discord.ext import commands
 from discord.ui import Select, View
 import datetime
 import re
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -310,7 +311,7 @@ async def handle_set_market_timer(message, user):
         prompt_msg = await message.channel.send(
             "When should this market close?\n"
             "You can use:\n"
-            "• Duration format: `24h`, `7d`, `3d12h`\n"
+            "• Duration format: `24h`, `7d`, `3d12h30m`\n"
             "• Specific time: `2025-01-20 18:00`"
         )
         
@@ -325,23 +326,26 @@ async def handle_set_market_timer(message, user):
             deadline = None
             
             # Try parsing as duration
-            duration_pattern = re.compile(r'^(\d+d)?(\d+h)?$')
+            duration_pattern = re.compile(r'^(\d+d)?(\d+h)?(\d+m)?$')
             if duration_match := duration_pattern.match(time_str):
                 days = 0
                 hours = 0
+                minutes = 0
                 if duration_match.group(1):
                     days = int(duration_match.group(1)[:-1])
                 if duration_match.group(2):
                     hours = int(duration_match.group(2)[:-1])
+                if duration_match.group(3):
+                    minutes = int(duration_match.group(3)[:-1])
                     
-                deadline = datetime.datetime.now() + datetime.timedelta(days=days, hours=hours)
+                deadline = datetime.datetime.now() + datetime.timedelta(days=days, hours=hours, minutes=minutes)
             
             # Try parsing as specific time
             else:
                 try:
                     deadline = datetime.datetime.strptime(time_str, '%Y-%m-%d %H:%M')
                 except ValueError:
-                    await message.channel.send("Invalid time format. Please use either duration (e.g., '24h', '7d', '3d12h') or specific time (e.g., '2025-01-20 18:00')")
+                    await message.channel.send("Invalid time format. Please use either duration (e.g., '24h', '7d', '3d12h30m') or specific time (e.g., '2025-01-20 18:00')")
                     return
 
             # Validate deadline is in the future
@@ -366,7 +370,10 @@ async def handle_set_market_timer(message, user):
             # Schedule the countdown job
             bot.loop.create_task(handle_market_countdown(message, market_id, deadline))
             
-            await message.channel.send(f"Market will close at {deadline.strftime('%Y-%m-%d %H:%M')} UTC")
+            # Convert deadline to Pacific time for display
+            pacific = pytz.timezone('America/Los_Angeles')
+            deadline_pacific = deadline.astimezone(pacific)
+            await message.channel.send(f"Market will close at {deadline_pacific.strftime('%Y-%m-%d %I:%M %p')} PT")
             
         except asyncio.TimeoutError:
             await prompt_msg.delete()
