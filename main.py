@@ -322,6 +322,8 @@ async def handle_set_market_resolver(message, user):
                 
             response = await bot.wait_for('message', check=check, timeout=30.0)
             resolver = response.mentions[0]
+
+            await response.delete()
             
             # Update the database
             cursor.execute('''
