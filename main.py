@@ -283,6 +283,10 @@ async def handle_set_market_timer(message):
 async def handle_set_market_resolver(message, user):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
+
+         # Debug print
+        print(f"Message ID: {message.id}")
+        print(f"Active Markets: {bot.active_markets}")
         
         # Get market info using the market ID from bot.active_markets
         market_id = bot.active_markets[message.id]
