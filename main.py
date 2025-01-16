@@ -248,7 +248,8 @@ async def create_market(ctx, *, market_details):
         # Store message ID and market details for reaction handling
         bot.active_markets[message.id] = {
             'market_id': market_id,
-            'options': options
+            'options': options,
+            'title': title
         }
 
 @bot.event
@@ -747,7 +748,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 
                 # Show final confirmation
                 final_embed = discord.Embed(
-                    title=f"{user} offering {selected_option}",
+                    title=f"{user} offering {selected_option} on: {market_data}['title']",
                     color=discord.Color.green()
                 )
 
