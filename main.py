@@ -751,9 +751,9 @@ async def handle_bet_offer_reaction(message, user, market_data):
                     color=discord.Color.green()
                 )
 
-                final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=False)
+                final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
-                final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
+                final_embed.add_field(name="Bet ID", value=bet_id, inline=True)
                 final_embed.add_field(name="Market ID:", value=market_data['market_id'], inline=True)
                # final_embed.add_field(name="Outcome", value=selected_option, inline=False)
                 #final_embed.add_field(name="Offered By", value=user.mention, inline=False)
