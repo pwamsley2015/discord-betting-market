@@ -1350,7 +1350,7 @@ async def dennis_help(ctx):
    """
    embed = discord.Embed(
        title="Dennis Betting Bot Commands 🎲",
-       description="A betting market bot for friendly wagers!",
+       description="A betting market bot for financial memetic warfare",
        color=discord.Color.blue()
    )
    
@@ -1381,7 +1381,7 @@ Example: `!resolvemarket 1 Yes`
 **Managing Bets**
 - ✅ Accept a bet
 - ❌ Cancel your bet
-- ❔ See bet explanation
+- ❔ See bet explanation (including your pot odds!)
 - 📉 Flag bet for bad odds
 - 🤏 Flag bet as too small
 - <:monkaS:814271443327123466> Flag bet as too big
@@ -1426,7 +1426,6 @@ Show your open offers and active bets
 - You can't accept your own bets
 - Only market creators or designated resolvers can resolve markets
 - Markets can have optional close times
-- Keep an eye on your Market IDs and Bet IDs!
        """,
        inline=False
    )
