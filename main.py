@@ -1344,82 +1344,102 @@ async def noslop(ctx):
 
 @bot.command(name='dennishelp')
 async def dennis_help(ctx):
-    """
-    Show all available commands for Dennis the betting bot
-    Usage: !dennishelp
-    """
-    embed = discord.Embed(
-        title="Dennis Betting Bot Commands 🎲",
-        description="Here's everything I can do!",
-        color=discord.Color.blue()
-    )
-    # Market Management
-    embed.add_field(
-        name="📊 Create & Manage Markets",
-        value="""
-**!createmarket** `<title>? <option1>, <option2>, ...`
+   """
+   Show all available commands for Dennis the betting bot
+   Usage: !dennishelp
+   """
+   embed = discord.Embed(
+       title="Dennis Betting Bot Commands 🎲",
+       description="A betting market bot for friendly wagers!",
+       color=discord.Color.blue()
+   )
+   
+   # Market Creation & Resolution
+   embed.add_field(
+       name="📊 Markets",
+       value="""
+**!createmarket** `<question>? <option1>, <option2>, ...`
 Create a new betting market
 Example: `!createmarket Will it rain tomorrow? Yes, No`
+
 **!resolvemarket** `<market_id> <winning_outcome>`
-Resolve a market (creator only)
+Resolve a market (creator or designated resolver only)
 Example: `!resolvemarket 1 Yes`
-**!listmarkets**
-Show all active betting markets
-        """,
-        inline=False
-    )
-    # Betting Commands
-    embed.add_field(
-        name="💰 Place & Accept Bets",
-        value="""
-**!offerbet** `<market_id> <outcome> <offer> <ask>`
-Create a bet offer
-- offer: amount you risk
-- ask: amount you want to win
-Example: `!offerbet 1 Yes 10 20`
-**!acceptbet** `<bet_id>`
-Accept an open bet offer
-Example: `!acceptbet 1`
-**!cancelbet** `<bet_id>`
-Cancel your open bet offer
-Example: `!cancelbet 1`
+       """,
+       inline=False
+   )
+   
+   # Betting System
+   embed.add_field(
+       name="💰 How Betting Works",
+       value="""
+**Creating Bets**
+1. React with <:dennis:1328277972612026388> on any market
+2. Select which outcome you're betting on
+3. Enter how much you want to risk and how much you want to win
+
+**Managing Bets**
+- ✅ Accept a bet
+- ❌ Cancel your bet
+- ❔ See bet explanation
+- 📉 Flag bet for bad odds
+- 🤏 Flag bet as too small
+- <:monkaS:814271443327123466> Flag bet as too big
+       """,
+       inline=False
+   )
+   
+   # Market Features
+   embed.add_field(
+       name="⚙️ Market Features",
+       value="""
+**Resolver Settings**
+- React 🇷 to set a different resolver for your market
+
+**Timer Settings**
+- React ⏲️ to set when the market closes
+- Support for duration (24h, 7d) or specific time
+       """,
+       inline=False
+   )
+
+   # Tracking Bets
+   embed.add_field(
+       name="📈 Track Your Bets",
+       value="""
 **!listbets** `[market_id]`
 List all open bet offers, optionally filtered by market
 Example: `!listbets` or `!listbets 1`
-        """,
-        inline=False
-    )
-    # Personal Tracking
-    embed.add_field(
-        name="👤 Track Your Bets",
-        value="""
+
 **!mybets**
 Show your open offers and active bets
-        """,
-        inline=False
-    )
-    # Usage Tips
-    embed.add_field(
-        name="💡 Tips",
-        value="""
+       """,
+       inline=False
+   )
+   
+   # Usage Tips
+   embed.add_field(
+       name="💡 Tips",
+       value="""
 - When offering a bet, the 'offer' is what you risk and the 'ask' is what you want to win
 - Betting amounts are in dollars ($)
 - You can't accept your own bets
-- Only market creators can resolve their markets
-- Keep track of your bet IDs and market IDs!
-        """,
-        inline=False
-    )
-    
-    embed.add_field(
-        name="🔧",
-        value="**!noslop**",
-        inline=False
-    )
-    embed.set_footer(text="Dennis v1.0 | Boats carried by Claude")
-    
-    await ctx.send(embed=embed)
+- Only market creators or designated resolvers can resolve markets
+- Markets can have optional close times
+- Keep an eye on your Market IDs and Bet IDs!
+       """,
+       inline=False
+   )
 
+   embed.add_field(
+       name="🔧",
+       value="**!noslop**",
+       inline=False
+   )
+   
+   embed.set_footer(text="Dennis v2.0 | Boats carried by Claude")
+   
+   await ctx.send(embed=embed)
 # Run the bot
 if __name__ == "__main__":
     bot.run(TOKEN)
