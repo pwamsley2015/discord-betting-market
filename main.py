@@ -263,7 +263,7 @@ async def on_raw_reaction_add(payload):
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
         elif str(payload.emoji) == "🇷":
-            await handle_set_market_resolver(message)
+            await handle_set_market_resolver(message, user)
         elif str(payload.emoji == "⏲️"):
             await handle_set_market_timer(message)
 
@@ -280,7 +280,7 @@ async def on_raw_reaction_add(payload):
 async def handle_set_market_timer(message):
     await message.channel.send("timer set (jk haven't implemented yet)")
 
-async def handle_set_market_resolver(message):
+async def handle_set_market_resolver(message, user):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
         
@@ -300,7 +300,7 @@ async def handle_set_market_resolver(message):
         creator_id, status = market
         
         # Verify the user is the creator
-        if str(message.author.id) != str(creator_id):
+        if str(user.id) != str(creator_id):
             await message.channel.send("Only the market creator can set the resolver.")
             return
             
@@ -314,7 +314,7 @@ async def handle_set_market_resolver(message):
         try:
             # Wait for the creator's response mentioning the resolver
             def check(m):
-                return m.author.id == message.author.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
+                return m.author.id == user.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
                 
             response = await bot.wait_for('message', check=check, timeout=30.0)
             resolver = response.mentions[0]
