@@ -280,6 +280,25 @@ async def on_raw_reaction_add(payload):
             await handle_bet_explanation(message, user, bet_id)
         elif str(payload.emoji) == "❌":
             await handle_bet_cancellation(message, user, bet_id)
+        elif str(payload.emoji) == "🆘":
+            await handle_bet_react_help(message)
+
+
+async def handle_bet_react_help(message):
+   help_text = (
+       "**Bet Reactions Guide:**\n"
+       "✅ Accept this bet\n" 
+       "❌ Cancel bet\n"
+       "❔ See explanation\n"
+       "📉 Flag bet for bad odds\n"
+       "🤏 Flag bet as too small\n" 
+       "<:monkaS:814271443327123466> Flag bet as too big"
+   )
+   help_msg = await message.channel.send(help_text)
+   
+   # Delete help message after 20 seconds
+   await asyncio.sleep(20)
+   await help_msg.delete()
 
 async def handle_set_market_timer(message, user):
     if message.id not in bot.active_markets:
@@ -728,24 +747,26 @@ async def handle_bet_offer_reaction(message, user, market_data):
                 
                 # Show final confirmation
                 final_embed = discord.Embed(
-                    title="Bet Offered!",
+                    title="${user.mention} offering ${selected_option}",
                     color=discord.Color.green()
                 )
 
-                final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
-                final_embed.add_field(name="Market ID", value=market_data['market_id'], inline=False)
-                final_embed.add_field(name="Outcome", value=selected_option, inline=False)
-                final_embed.add_field(name="You Risk", value=f"${offer_amount}", inline=True)
+                final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=False)
                 final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
-                final_embed.add_field(name="Offered By", value=user.mention, inline=False)
-                final_embed.add_field(name="Reacts:", value="✅ to accept this bet. ❌ to cancel bet. ❔for explanation. 📉 if you think a bet is giving bad odds, 🤏 if a bet is too small, <:monkaS:814271443327123466> if it's too big.", inline=False)
+                final_embed.add_field(name="Bet ID", value=bet_id, inline=False)
+                final_embed.add_field(name="Market ID:", value=market_data['market_id'], inline=True)
+               # final_embed.add_field(name="Outcome", value=selected_option, inline=False)
+                #final_embed.add_field(name="Offered By", value=user.mention, inline=False)
+                final_embed.add_field(name="Help: 🆘", value="", inline=False)
+                # final_embed.add_field(name="Reacts:", value="✅ to accept this bet. ❌ to cancel bet. ❔for explanation. 📉 if you think a bet is giving bad odds, 🤏 if a bet is too small, <:monkaS:814271443327123466> if it's too big.", inline=False)
 
                 await prompt_msg.add_reaction("✅")
-                await prompt_msg.add_reaction("❔")
                 await prompt_msg.add_reaction("❌")
+                await prompt_msg.add_reaction("❔")
                 await prompt_msg.add_reaction("📉")
                 await prompt_msg.add_reaction("🤏")
                 await prompt_msg.add_reaction("<:monkaS:814271443327123466>")
+                await prompt_msg.add_reaction("🆘")
 
                 # Store in active bets for reaction handling
                 bot.active_bets = getattr(bot, 'active_bets', {})
