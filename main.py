@@ -292,9 +292,9 @@ async def handle_bet_react_help(message):
        "✅ Accept this bet\n" 
        "❌ Cancel bet\n"
        "❔ See explanation\n"
-       "📉 Flag bet for bad odds\n"
-       "🤏 Flag bet as too small\n" 
-       "<:monkaS:814271443327123466> Flag bet as too big"
+       "📉 🗣️bad odds\n"
+       "🤏 🗣️too small\n" 
+       "<:monkaS:814271443327123466> 🗣️too big"
    )
    help_msg = await message.channel.send(help_text)
    
