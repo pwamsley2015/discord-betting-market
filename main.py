@@ -150,7 +150,8 @@ class BettingBot(commands.Bot):
                 # Store in active_markets
                 self.active_markets[int(message_id)] = {
                     'market_id': market_id,
-                    'options': options
+                    'options': options,
+                    'title': title
                 }
                 print(f"Loaded active market: {title}")
                 
