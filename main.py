@@ -336,8 +336,7 @@ async def update_market_stats(message, market_id):
         # Get current embed and update or add stats field
         embed = message.embeds[0]
         stats_text = (
-            f"📊 **Market Activity**\n"
-            f"Open Bets: {open_count}\n"
+            f"**Open Bets: {open_count}**\n"
             f"Accepted Bets: {accepted_count}\n"
             f"Total Volume: ${total_volume:.0f}"
         )
