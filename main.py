@@ -220,11 +220,12 @@ async def create_market(ctx, *, market_details):
             title=title,
             color=discord.Color.green()
         )
-        embed.add_field(name="Market ID", value=market_id, inline=False)
+        # embed.add_field(name="Market ID", value=market_id, inline=False)
         embed.add_field(name="Options", value="\n".join(options), inline=False)
-        embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
-        embed.add_field(name="Set resolver:", value="🇷 (creator is default)", inline=False)
-        embed.add_field(name="Set timer:", value="⏲️", inline=False)
+        # embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
+        # embed.add_field(name="Set resolver:", value="🇷 (creator is default)", inline=False)
+        # embed.add_field(name="Set timer:", value="⏲️", inline=False)
+        embed.add_field(name="help: ", value="⏲️", inline=False)
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
@@ -233,6 +234,7 @@ async def create_market(ctx, *, market_details):
         await message.add_reaction("<:dennis:1328277972612026388>")
         await message.add_reaction("🇷")
         await message.add_reaction("⏲️")
+        await message.add_reaction("🆘")
         
         # Create thread
         thread = await message.create_thread(
@@ -280,6 +282,8 @@ async def on_raw_reaction_add(payload):
             await handle_set_market_resolver(message, user)
         elif str(payload.emoji == "⏲️"):
             await handle_set_market_timer(message, user)
+        elif str(payload.emoji) == "🆘":
+            await handle_market_react_help(message)
 
    # Check if this is a bet acceptance or explanation
     elif message.id in bot.active_bets:
@@ -292,6 +296,19 @@ async def on_raw_reaction_add(payload):
             await handle_bet_cancellation(message, user, bet_id)
         elif str(payload.emoji) == "🆘":
             await handle_bet_react_help(message)
+
+async def handle_market_react_help(message) {
+    help_text = (
+       "<:dennis:1328277972612026388> Offer a bet\n" 
+       "❌ Set the resolver (creator by default) \n"
+       "❔ Set a timer to close the market\n"
+   )
+   help_msg = await message.channel.send(help_text)
+   
+   # Delete help message after 20 seconds
+   await asyncio.sleep(20)
+   await help_msg.delete()
+}
 
 async def update_market_stats(message, market_id):
     with bot.db.get_connection() as conn:
