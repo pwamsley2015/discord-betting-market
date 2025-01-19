@@ -642,6 +642,9 @@ async def handle_bet_explanation(message, user, bet_id):
 async def handle_bet_offer_reaction(message, user, market_data):
     # List to store messages we'll want to clean up
     messages_to_delete = []
+
+    # Get the thread for this market
+    thread = await message.guild.fetch_channel(market_data['thread_id'])
     
     # Verify market is open first
     with bot.db.get_connection() as conn:
@@ -669,7 +672,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
     view = BetView(market_data, user)
     
     # Send in the same channel as the original message
-    prompt_msg = await message.channel.send(embed=bet_embed, view=view)
+    prompt_msg = await thread.send(embed=bet_embed, view=view)
     
     # Wait for selection
     await view.wait()
@@ -697,7 +700,7 @@ async def handle_bet_offer_reaction(message, user, market_data):
 
     # Wait for their response
     def check(m):
-        return m.author == user and m.channel == message.channel
+        return m.author == user and m.channel.id == thread.id
 
     try:
         # Get target user
@@ -797,15 +800,15 @@ async def handle_bet_offer_reaction(message, user, market_data):
                         pass  # Ignore any messages that were already deleted
                 
             except ValueError:
-                await message.channel.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
+                await thread.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
                 await prompt_msg.delete()
                 
         except ValueError:
-            await message.channel.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
+            await thread.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
             await prompt_msg.delete()
             
     except asyncio.TimeoutError:
-        await message.channel.send("Bet creation timed out.", delete_after=10)
+        await thread.send("Bet creation timed out.", delete_after=10)
         await prompt_msg.delete()
     
     # Clean up messages even if there was an error
