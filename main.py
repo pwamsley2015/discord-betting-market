@@ -743,172 +743,172 @@ async def handle_bet_offer_reaction(message, user, market_data):
             await message.channel.send("This market is not open for betting.", delete_after=10)
             return
 
-
-   bet_embed = discord.Embed(
-       title="Create Bet",
-       description=f"{user.mention} is creating a bet offer.",
-       color=discord.Color.blue()
-   )
-   bet_embed.add_field(
-       name="Step 1: Choose your option",
-       value="Use the dropdown menu below to select your outcome",
-       inline=False
-   )
+    bet_embed = discord.Embed(
+        title="Create Bet",
+        description=f"{user.mention} is creating a bet offer.",
+        color=discord.Color.blue()
+    )
+    bet_embed.add_field(
+        name="Step 1: Choose your option",
+        value="Use the dropdown menu below to select your outcome",
+        inline=False
+    )
    
-   view = BetView(market_data, user)
-   prompt_msg = await message.channel.send(embed=bet_embed, view=view)
-   messages_to_delete.append(prompt_msg)
+    view = BetView(market_data, user)
+    prompt_msg = await message.channel.send(embed=bet_embed, view=view)
+    messages_to_delete.append(prompt_msg)
    
-   await view.wait()
+    await view.wait()
    
-   if view.selected_option is None:
-       await message.channel.send("Bet creation timed out.", delete_after=10)
-       for msg in messages_to_delete:
-           try:
-               await msg.delete()
-           except:
-               pass
-       return
+    if view.selected_option is None:
+        await message.channel.send("Bet creation timed out.", delete_after=10)
+        for msg in messages_to_delete:
+            try:
+                await msg.delete()
+            except:
+                pass
+        return
        
-   selected_index = int(view.selected_option)
-   selected_option = market_data['options'][selected_index]
+    selected_index = int(view.selected_option)
+    selected_option = market_data['options'][selected_index]
 
-   # Target user prompt - in main channel
-   target_embed = discord.Embed(
-       title="Create Bet",
-       description=f"Selected: {selected_option}",
-       color=discord.Color.blue()
-   )
-   target_embed.add_field(
-       name="Step 2: Target User (Optional)",
-       value="Mention a user to offer this bet to them specifically, or type 'skip' to offer to anyone",
-       inline=False
-   )
-   await prompt_msg.edit(embed=target_embed, view=None)
+    # Target user prompt - in main channel
+    target_embed = discord.Embed(
+        title="Create Bet",
+        description=f"Selected: {selected_option}",
+        color=discord.Color.blue()
+    )
+    target_embed.add_field(
+        name="Step 2: Target User (Optional)",
+        value="Mention a user to offer this bet to them specifically, or type 'skip' to offer to anyone",
+        inline=False
+    )
+    await prompt_msg.edit(embed=target_embed, view=None)
 
-   # Check for messages in main channel
-   def check(m):
-       return m.author == user and m.channel == message.channel
+    # Check for messages in main channel
+    def check(m):
+        return m.author == user and m.channel == message.channel
 
-   try:
-       target_msg = await bot.wait_for('message', check=check, timeout=60.0)
-       messages_to_delete.append(target_msg)
-       target_user = None
-       if target_msg.content.lower() != 'skip' and len(target_msg.mentions) > 0:
-           target_user = target_msg.mentions[0]
+    try:
+        target_msg = await bot.wait_for('message', check=check, timeout=60.0)
+        messages_to_delete.append(target_msg)
+        target_user = None
+        if target_msg.content.lower() != 'skip' and len(target_msg.mentions) > 0:
+            target_user = target_msg.mentions[0]
        
-       # Amount prompt - in main channel
-       amount_embed = discord.Embed(
-           title="Create Bet",
-           description=f"Selected: {selected_option}",
-           color=discord.Color.blue()
-       )
-       amount_embed.add_field(
-           name="Step 3: Risk Amount",
-           value="How much would you like to risk? (in $)",
-           inline=False
-       )
-       await prompt_msg.edit(embed=amount_embed)
+        # Amount prompt - in main channel
+        amount_embed = discord.Embed(
+            title="Create Bet",
+            description=f"Selected: {selected_option}",
+            color=discord.Color.blue()
+        )
+        amount_embed.add_field(
+            name="Step 3: Risk Amount",
+            value="How much would you like to risk? (in $)",
+            inline=False
+        )
+        await prompt_msg.edit(embed=amount_embed)
        
-       amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
-       messages_to_delete.append(amount_msg)
+        amount_msg = await bot.wait_for('message', check=check, timeout=60.0)
+        messages_to_delete.append(amount_msg)
        
-       try:
-           offer_amount = float(amount_msg.content)
+        try:
+            offer_amount = float(amount_msg.content)
            
-           winnings_embed = discord.Embed(
-               title="Create Bet",
-               description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
-               color=discord.Color.blue()
-           )
-           winnings_embed.add_field(
-               name="Step 4: Desired Winnings",
-               value="How much would you like to win? (in $)",
-               inline=False
-           )
-           await prompt_msg.edit(embed=winnings_embed)
+            winnings_embed = discord.Embed(
+                title="Create Bet",
+                description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
+                color=discord.Color.blue()
+            )
+            winnings_embed.add_field(
+                name="Step 4: Desired Winnings",
+                value="How much would you like to win? (in $)",
+                inline=False
+            )
+            await prompt_msg.edit(embed=winnings_embed)
            
-           winnings_msg = await bot.wait_for('message', check=check, timeout=60.0)
-           messages_to_delete.append(winnings_msg)
+            winnings_msg = await bot.wait_for('message', check=check, timeout=60.0)
+            messages_to_delete.append(winnings_msg)
            
-           try:
-               ask_amount = float(winnings_msg.content)
+            try:
+                ask_amount = float(winnings_msg.content)
                
-               # Create bet in database
-               with bot.db.get_connection() as conn:
-                   cursor = conn.cursor()
-                   # Create final bet message in thread
-                   final_embed = discord.Embed(
-                       title=f"{user} offering {selected_option} on: {market_data['title']}",
-                       color=discord.Color.green()
-                   )
-                   final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
-                   final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
-                   final_embed.add_field(name="Bet ID", value="Pending...", inline=True)
-                   final_embed.add_field(name="Market ID:", value=market_data['market_id'], inline=True)
-                   final_embed.add_field(name="Help: 🆘", value="", inline=False)
+                # Create bet in database
+                with bot.db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    # Create final bet message in thread
+                    final_embed = discord.Embed(
+                        title=f"{user} offering {selected_option} on: {market_data['title']}",
+                        color=discord.Color.green()
+                    )
+                    final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
+                    final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
+                    final_embed.add_field(name="Bet ID", value="Pending...", inline=True)
+                    final_embed.add_field(name="Market ID:", value=market_data['market_id'], inline=True)
+                    final_embed.add_field(name="Help: 🆘", value="", inline=False)
 
-                   # Send final embed to thread and get the message object
-                   bet_msg = await thread.send(embed=final_embed)
+                    # Send final embed to thread and get the message object
+                    bet_msg = await thread.send(embed=final_embed)
                    
-                   # Now insert into database with the new message ID
-                   cursor.execute('''
-                       INSERT INTO bet_offers 
-                       (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ''', (market_data['market_id'], str(user.id), selected_option, 
-                        offer_amount, ask_amount, str(target_user.id) if target_user else None, 
-                        str(bet_msg.id)))
-                   bet_id = cursor.lastrowid
-                   conn.commit()
+                    # Now insert into database with the new message ID
+                    cursor.execute('''
+                        INSERT INTO bet_offers 
+                        (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (market_data['market_id'], str(user.id), selected_option, 
+                         offer_amount, ask_amount, str(target_user.id) if target_user else None, 
+                         str(bet_msg.id)))
+                    bet_id = cursor.lastrowid
+                    conn.commit()
 
-                   # Update the embed with the bet ID
-                   final_embed.set_field_at(2, name="Bet ID", value=bet_id, inline=True)
+                    # Update the embed with the bet ID
+                    final_embed.set_field_at(2, name="Bet ID", value=bet_id, inline=True)
                    
-                   # Add reactions to the bet message
-                   await bet_msg.add_reaction("✅")
-                   await bet_msg.add_reaction("❌")
-                   await bet_msg.add_reaction("❔")
-                   await bet_msg.add_reaction("📉")
-                   await bet_msg.add_reaction("🤏")
-                   await bet_msg.add_reaction("<:monkaS:814271443327123466>")
-                   await bet_msg.add_reaction("🆘")
+                    # Add reactions to the bet message
+                    await bet_msg.add_reaction("✅")
+                    await bet_msg.add_reaction("❌")
+                    await bet_msg.add_reaction("❔")
+                    await bet_msg.add_reaction("📉")
+                    await bet_msg.add_reaction("🤏")
+                    await bet_msg.add_reaction("<:monkaS:814271443327123466>")
+                    await bet_msg.add_reaction("🆘")
 
-                   if target_user:
-                       final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
-                   await bet_msg.edit(embed=final_embed)
+                    if target_user:
+                        final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
+                    await bet_msg.edit(embed=final_embed)
 
-                   # Store in active bets for reaction handling
-                   bot.active_bets = getattr(bot, 'active_bets', {})
-                   bot.active_bets[bet_msg.id] = bet_id
+                    # Store in active bets for reaction handling
+                    bot.active_bets = getattr(bot, 'active_bets', {})
+                    bot.active_bets[bet_msg.id] = bet_id
                
-                   # Update market stats
-                   try:
-                       await update_market_stats(message, market_data['market_id'])
-                   finally:
-                       # Clean up all intermediate messages
-                       for msg in messages_to_delete:
-                           try:
-                               await msg.delete()
-                           except:
-                               pass
+                    # Update market stats
+                    try:
+                        await update_market_stats(message, market_data['market_id'])
+                    finally:
+                        # Clean up all intermediate messages
+                        for msg in messages_to_delete:
+                            try:
+                                await msg.delete()
+                            except:
+                                pass
                
-           except ValueError:
-               await message.channel.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
+            except ValueError:
+                await message.channel.send("Invalid winnings amount. Bet creation cancelled.", delete_after=10)
                
-       except ValueError:
-           await message.channel.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
+        except ValueError:
+            await message.channel.send("Invalid risk amount. Bet creation cancelled.", delete_after=10)
            
-   except asyncio.TimeoutError:
-       await message.channel.send("Bet creation timed out.", delete_after=10)
+    except asyncio.TimeoutError:
+        await message.channel.send("Bet creation timed out.", delete_after=10)
    
-   # Clean up all intermediate messages
-   finally:
-       for msg in messages_to_delete:
-           try:
-               await msg.delete()
-           except:
-               pass
+    # Clean up all intermediate messages
+    finally:
+        for msg in messages_to_delete:
+            try:
+                await msg.delete()
+            except:
+                pass
+
 
 async def handle_bet_acceptance(message, user, bet_id):
     with bot.db.get_connection() as conn:
