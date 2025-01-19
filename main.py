@@ -698,9 +698,31 @@ async def handle_bet_explanation(message, user, bet_id):
 async def handle_bet_offer_reaction(message, user, market_data):
     messages_to_delete = []
     
-    # Get the thread for this market for later use
-    thread = await message.guild.fetch_channel(market_data['thread_id'])
+    # Get the thread if it exists
+    thread = None
+    if 'thread_id' in market_data:
+        thread = await message.guild.fetch_channel(market_data['thread_id'])
     
+    # If no thread, create one
+    if thread is None:
+        thread = await message.channel.create_thread(
+            name=f"Market {market_data['market_id']}: {market_data['title'][:50]}{'...' if len(market_data['title']) > 50 else ''}",
+            message=message,
+            type=discord.ChannelType.public_thread
+        )
+        # Update market_data with new thread
+        market_data['thread_id'] = thread.id
+        
+        # Update database with new thread_id
+        with bot.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE markets 
+                SET thread_id = ? 
+                WHERE market_id = ?
+            ''', (str(thread.id), market_data['market_id']))
+            conn.commit()
+
     # Verify market is open first
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
