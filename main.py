@@ -847,14 +847,14 @@ async def handle_bet_offer_reaction(message, user, market_data):
     except asyncio.TimeoutError:
         await message.channel.send("Bet creation timed out.", delete_after=10)
     
-    # Clean up all intermediate messages and update market
-    await update_market_stats(message, market_data['market_id'])
-    finally:
-        for msg in messages_to_delete:
-            try:
-                await msg.delete()
-            except:
-                pass
+        # Clean up all intermediate messages and update market
+        await update_market_stats(message, market_data['market_id'])
+        finally:
+            for msg in messages_to_delete:
+                try:
+                    await msg.delete()
+                except:
+                    pass
 
 async def handle_bet_acceptance(message, user, bet_id):
     with bot.db.get_connection() as conn:
