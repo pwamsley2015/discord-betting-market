@@ -274,13 +274,12 @@ async def on_raw_reaction_add(payload):
     message = await channel.fetch_message(payload.message_id)
     user = await bot.fetch_user(payload.user_id)
     
-    # Check if this is a betting reaction on a market message
     if message.id in bot.active_markets: 
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
         elif str(payload.emoji) == "🇷":
             await handle_set_market_resolver(message, user)
-        elif str(payload.emoji == "⏲️"):
+        elif str(payload.emoji) == "⏲️":
             await handle_set_market_timer(message, user)
         elif str(payload.emoji) == "🆘":
             await handle_market_react_help(message)
