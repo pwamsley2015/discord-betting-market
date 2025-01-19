@@ -39,14 +39,14 @@ class BettingBot(commands.Bot):
             
             # Get all open markets
             cursor.execute('''
-                SELECT market_id, discord_message_id, title, thread_id
+                SELECT market_id, discord_message_id, title, thread_id, creator_id
                 FROM markets 
                 WHERE status = 'open' 
                 AND discord_message_id IS NOT NULL
             ''')
             open_markets = cursor.fetchall()
             
-            for market_id, message_id, title, thread_id in open_markets:
+            for market_id, message_id, title, thread_id, creator_id in open_markets:
                 # Get market options
                 cursor.execute('''
                     SELECT outcome_name 
@@ -56,7 +56,7 @@ class BettingBot(commands.Bot):
                 options = [row[0] for row in cursor.fetchall()]
                 
                 # Create Market object and store in active_markets
-                market = Market(market_id, title, options, None, message_id, thread_id)
+                market = Market(market_id, title, options, creator_id, message_id, thread_id)
                 market.db = self.db
                 self.active_markets[int(message_id)] = market.to_dict()
                 print(f"Loaded active market: {title}")
