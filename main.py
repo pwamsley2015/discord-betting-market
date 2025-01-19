@@ -589,37 +589,43 @@ async def handle_bet_cancellation(message, user, bet_id):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
         
-        # Verify bet exists and user owns it
-        cursor.execute('SELECT bettor_id FROM bet_offers WHERE bet_id = ?', (bet_id,))
+        # First get the bet details including market_id
+        cursor.execute('''
+            SELECT bettor_id, status, market_id 
+            FROM bet_offers 
+            WHERE bet_id = ?
+        ''', (bet_id,))
         bet = cursor.fetchone()
         
         if not bet:
-            await message.channel.send("Bet offer not found.", delete_after=10)
+            await message.channel.send("Bet not found.", delete_after=10)
             return
             
-        if str(user.id) != bet[0]:
-            await message.channel.send("You can only cancel your own bet offers.", delete_after=10)
+        bettor_id, status, market_id = bet
+        
+        # Verify user is the bettor
+        if str(user.id) != str(bettor_id):
+            await message.channel.send("Only the bet creator can cancel this bet.", delete_after=10)
             return
-        
-        # Remove the bet offer
-        cursor.execute('DELETE FROM bet_offers WHERE bet_id = ?', (bet_id,))
+            
+        if status != 'open':
+            await message.channel.send("This bet is not open for cancellation.", delete_after=10)
+            return
+            
+        # Cancel the bet
+        cursor.execute('''
+            UPDATE bet_offers 
+            SET status = 'cancelled' 
+            WHERE bet_id = ?
+        ''', (bet_id,))
         conn.commit()
-        
-        # Remove from active bets
-        bot.active_bets.pop(message.id, None)
-    
-        # Create cancelled embed
-        cancelled_embed = discord.Embed(
-            title="Bet Offer Cancelled",
-            description=f"Bet offer #{bet_id} has been cancelled.",
-            color=discord.Color.red()
-        )
 
-        await update_market_stats(message, market_data['market_id'])
+        # Update the market message stats
+        await update_market_stats(message, market_id)
         
-        # Edit the original message to show cancelled status
-        await message.edit(embed=cancelled_embed, view=None)
-
+        # Clean up the bet message
+        await message.delete()
+        
 async def handle_bet_explanation(message, user, bet_id):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
