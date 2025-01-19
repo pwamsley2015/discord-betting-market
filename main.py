@@ -591,9 +591,8 @@ async def handle_bet_cancellation(message, user, bet_id):
         
         # First get the bet details including market_id
         cursor.execute('''
-            SELECT bet_offers.bettor_id, bet_offers.status, bet_offers.market_id, markets.discord_message_id 
+            SELECT bet_offers.bettor_id, bet_offers.status, bet_offers.market_id 
             FROM bet_offers 
-            JOIN markets ON bet_offers.market_id = markets.market_id
             WHERE bet_offers.bet_id = ?
         ''', (bet_id,))
         bet = cursor.fetchone()
@@ -602,7 +601,7 @@ async def handle_bet_cancellation(message, user, bet_id):
             await message.channel.send("Bet not found.", delete_after=10)
             return
             
-        bettor_id, status, market_id, market_message_id = bet
+        bettor_id, status, market_id = bet
         
         # Verify user is the bettor
         if str(user.id) != str(bettor_id):
@@ -621,9 +620,12 @@ async def handle_bet_cancellation(message, user, bet_id):
         ''', (bet_id,))
         conn.commit()
 
-        # Get the market message to update stats
-        market_message = await message.channel.fetch_message(int(market_message_id))
-        await update_market_stats(market_message, market_id)
+        # Find the market message from active_markets
+        for msg_id, data in bot.active_markets.items():
+            if data['market_id'] == market_id:
+                market_message = await message.channel.fetch_message(msg_id)
+                await update_market_stats(market_message, market_id)
+                break
         
         # Clean up the bet message
         await message.delete()
