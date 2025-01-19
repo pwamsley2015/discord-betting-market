@@ -241,8 +241,7 @@ async def create_market(ctx, *, market_details):
         
         # Welcome message in thread
         await thread.send(
-            "🎲 **Market Thread Created!**\n"
-            "All betting activity for this market will appear here."
+            "https://tenor.com/view/memeplex-sol-remilia-remilio-milady-gif-17952083022135309581"
         )
         
         # Update the database with the message ID and thread ID
