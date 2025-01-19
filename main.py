@@ -299,8 +299,8 @@ async def on_raw_reaction_add(payload):
 async def handle_market_react_help(message):
     help_text = (
         "<:dennis:1328277972612026388> Offer a bet\n" 
-        "❌ Set the resolver (creator by default) \n"
-        "❔ Set a timer to close the market\n"
+        "🇷 Set the resolver (creator by default) \n"
+        "⏲️ Set a timer to close the market\n"
     )
     help_msg = await message.channel.send(help_text)
     await asyncio.sleep(30)
