@@ -591,10 +591,10 @@ async def handle_bet_cancellation(message, user, bet_id):
         
         # First get the bet details including market_id
         cursor.execute('''
-            SELECT bettor_id, status, market_id, markets.discord_message_id 
+            SELECT bet_offers.bettor_id, bet_offers.status, bet_offers.market_id, markets.discord_message_id 
             FROM bet_offers 
             JOIN markets ON bet_offers.market_id = markets.market_id
-            WHERE bet_id = ?
+            WHERE bet_offers.bet_id = ?
         ''', (bet_id,))
         bet = cursor.fetchone()
         
@@ -627,7 +627,6 @@ async def handle_bet_cancellation(message, user, bet_id):
         
         # Clean up the bet message
         await message.delete()
-        
 async def handle_bet_explanation(message, user, bet_id):
     with bot.db.get_connection() as conn:
         cursor = conn.cursor()
