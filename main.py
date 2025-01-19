@@ -697,37 +697,40 @@ async def handle_bet_explanation(message, user, bet_id):
     await message.channel.send(embed=embed)
 
 async def handle_bet_offer_reaction(message, user, market_data):
-   messages_to_delete = []
-   
-   # Try to find existing thread
-   thread = None
-   if 'thread_id' in market_data:
-       try:
-           thread = await message.guild.fetch_channel(market_data['thread_id'])
-       except:
-           pass
-   
-   if thread is None:
-       # Get the existing thread from the message
-       threads = message.threads
-       if threads:
-           thread = threads[0]  # Get the first (and should be only) thread
-           # Update market_data with found thread
-           market_data['thread_id'] = thread.id
-           
-           # Update database with found thread_id
-           with bot.db.get_connection() as conn:
-               cursor = conn.cursor()
-               cursor.execute('''
-                   UPDATE markets 
-                   SET thread_id = ? 
-                   WHERE market_id = ?
-               ''', (str(thread.id), market_data['market_id']))
-               conn.commit()
+    messages_to_delete = []
+    
+    # Try to find existing thread
+    thread = None
+    if 'thread_id' in market_data:
+        try:
+            thread = await message.guild.fetch_channel(market_data['thread_id'])
+        except:
+            pass
+    
+    if thread is None:
+        # Get the threads in this channel
+        threads = await message.channel.fetch_threads()
+        # Find thread started from this message
+        for t in threads:
+            if t.starter_message and t.starter_message.id == message.id:
+                thread = t
+                # Update market_data with found thread
+                market_data['thread_id'] = thread.id
+                
+                # Update database with found thread_id
+                with bot.db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE markets 
+                        SET thread_id = ? 
+                        WHERE market_id = ?
+                    ''', (str(thread.id), market_data['market_id']))
+                    conn.commit()
+                break
 
-   if thread is None:
-       await message.channel.send("Error: Could not find or create thread for this market.", delete_after=10)
-       return
+    if thread is None:
+        await message.channel.send("Error: Could not find thread for this market.", delete_after=10)
+        return
    
    # Verify market is open first
    with bot.db.get_connection() as conn:
