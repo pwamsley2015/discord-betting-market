@@ -385,6 +385,7 @@ async def handle_set_market_timer(message, user):
 
             # Delete user's response
             await response.delete()
+            await prompt_msg.delete()
             
             # Update the market message with countdown
             await update_market_embed(message, market_id, deadline)
