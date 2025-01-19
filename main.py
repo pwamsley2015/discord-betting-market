@@ -127,9 +127,9 @@ async def on_raw_reaction_add(payload):
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await handle_bet_offer_reaction(message, user, market)
         elif str(payload.emoji) == "🇷":
-            await market.handle_set_resolver(message, user)
+            await market.handle_set_resolver(message, user, bot)
         elif str(payload.emoji) == "⏲️":
-            await market.handle_set_timer(message, user)
+            await market.handle_set_timer(message, user, bot)
         elif str(payload.emoji) == "🆘":
             await Market.handle_react_help(message)
             

@@ -75,7 +75,7 @@ class Market:
 
         return message, thread
 
-    async def handle_set_resolver(self, message, user):
+    async def handle_set_resolver(self, message, user, bot):
         """Handle 🇷 reaction to set market resolver"""
         if str(user.id) != str(self.creator_id):
             await message.channel.send("Only the market creator can set the resolver.")
@@ -109,7 +109,7 @@ class Market:
             await message.channel.send("Timed out waiting for resolver selection.")
             await prompt_msg.delete()  # And here for timeout case
 
-    async def handle_set_timer(self, message, user):
+    async def handle_set_timer(self, message, user, bot):
         """Handle ⏲️ reaction to set market timer"""
         if str(user.id) != str(self.creator_id):
             await message.channel.send("Only the market creator can set the timer.")
