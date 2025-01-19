@@ -162,7 +162,8 @@ class Market:
             'market_id': self.id,
             'options': self.options,
             'title': self.title,
-            'thread_id': self.thread_id
+            'thread_id': self.thread_id,
+            'creator_id': self.creator_id
         }
 
     @classmethod
@@ -172,7 +173,7 @@ class Market:
             id=data['market_id'],
             title=data['title'],
             options=data['options'],
-            creator_id=None,  # We'll need to fetch this from DB if needed
+            creator_id=data['creator_id'],
             thread_id=data.get('thread_id')
         )
         market.db = db
