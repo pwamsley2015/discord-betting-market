@@ -297,7 +297,7 @@ async def on_raw_reaction_add(payload):
         elif str(payload.emoji) == "🆘":
             await handle_bet_react_help(message)
 
-async def handle_market_react_help(message) {
+async def handle_market_react_help(message):
     help_text = (
        "<:dennis:1328277972612026388> Offer a bet\n" 
        "❌ Set the resolver (creator by default) \n"
@@ -308,7 +308,6 @@ async def handle_market_react_help(message) {
    # Delete help message after 20 seconds
    await asyncio.sleep(20)
    await help_msg.delete()
-}
 
 async def update_market_stats(message, market_id):
     with bot.db.get_connection() as conn:
