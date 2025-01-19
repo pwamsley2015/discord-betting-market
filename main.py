@@ -566,8 +566,6 @@ async def handle_set_market_resolver(message, user):
             await message.channel.send(f"{resolver.mention} has been set as the resolver for this market.")
             
         except asyncio.TimeoutError:
-            await message.channel.send("Timed out waiting for resolver selection.")
-        finally:
             try:
                 await prompt_msg.delete()
             except:
