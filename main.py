@@ -225,19 +225,29 @@ async def create_market(ctx, *, market_details):
         embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
         embed.add_field(name="Set resolver:", value="🇷 (creator is default)", inline=False)
         embed.add_field(name="Set timer:", value="⏲️", inline=False)
-
-
         embed.set_footer(text=f"Created by {ctx.author.name}")
         
         # Send embed and store the message object
         message = await ctx.send(embed=embed)
         
-        # Update the database with the message ID
+        # Create thread
+        thread = await message.create_thread(
+            name=f"Market {market_id}: {title[:50]}{'...' if len(title) > 50 else ''}"  # Truncate long titles
+        )
+        
+        # Welcome message in thread
+        await thread.send(
+            "🎲 **Market Thread Created!**\n"
+            "All betting activity for this market will appear here."
+        )
+        
+        # Update the database with the message ID and thread ID
         cursor.execute('''
             UPDATE markets 
-            SET discord_message_id = ? 
+            SET discord_message_id = ?, 
+                thread_id = ?
             WHERE market_id = ?
-        ''', (str(message.id), market_id))
+        ''', (str(message.id), str(thread.id), market_id))
         
         conn.commit()
         
@@ -250,9 +260,9 @@ async def create_market(ctx, *, market_details):
         bot.active_markets[message.id] = {
             'market_id': market_id,
             'options': options,
-            'title': title
+            'title': title,
+            'thread_id': thread.id
         }
-
 @bot.event
 async def on_raw_reaction_add(payload):
     # Ignore bot's own reactions
