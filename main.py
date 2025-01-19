@@ -732,16 +732,17 @@ async def handle_bet_offer_reaction(message, user, market_data):
         await message.channel.send("Error: Could not find thread for this market.", delete_after=10)
         return
    
-   # Verify market is open first
-   with bot.db.get_connection() as conn:
-       cursor = conn.cursor()
-       cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
-                     (market_data['market_id'],))
-       market_status = cursor.fetchone()
-       
-       if not market_status or market_status[0] != 'open':
-           await message.channel.send("This market is not open for betting.", delete_after=10)
-           return
+    # Verify market is open first
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT status FROM markets WHERE market_id = ?', 
+                       (market_data['market_id'],))
+        market_status = cursor.fetchone()
+        
+        if not market_status or market_status[0] != 'open':
+            await message.channel.send("This market is not open for betting.", delete_after=10)
+            return
+
 
    bet_embed = discord.Embed(
        title="Create Bet",
