@@ -10,105 +10,13 @@ import datetime
 import re
 import pytz
 
+from database import BettingDatabase
+from market import Market
+from views import BetView, OutcomeSelect
+
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-
-class BettingDatabase:
-    def __init__(self, db_path='betting_market.db'):
-        self.db_path = db_path
-        self.init_database()
-
-    def get_connection(self):
-        return sqlite3.connect(self.db_path)
-
-    def init_database(self):
-        """Initialize the database with the new schema"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Markets table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS markets (
-                    market_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    status TEXT CHECK (status IN ('open', 'closed', 'resolved')) DEFAULT 'open',
-                    winning_outcome TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Market outcomes table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS market_outcomes (
-                    outcome_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    market_id INTEGER,
-                    outcome_name TEXT NOT NULL,
-                    FOREIGN KEY (market_id) REFERENCES markets(market_id)
-                )
-            ''')
-            
-            # Bet offers table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS bet_offers (
-                    bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    market_id INTEGER,
-                    bettor_id TEXT NOT NULL,
-                    outcome TEXT NOT NULL,
-                    offer_amount DECIMAL NOT NULL,
-                    ask_amount DECIMAL NOT NULL,
-                    status TEXT CHECK (status IN ('open', 'accepted', 'cancelled')) DEFAULT 'open',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    target_user_id TEXT,
-                    FOREIGN KEY (market_id) REFERENCES markets(market_id)
-                )
-            ''')
-            
-            # Accepted bets table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS accepted_bets (
-                    accepted_bet_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    bet_id INTEGER,
-                    acceptor_id TEXT NOT NULL,
-                    accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    status TEXT CHECK (status IN ('active', 'completed', 'void')) DEFAULT 'active',
-                    FOREIGN KEY (bet_id) REFERENCES bet_offers(bet_id)
-                )
-            ''')
-
-class OutcomeSelect(Select):
-    def __init__(self, options):
-        # Convert market options into discord select options
-        select_options = [
-            discord.SelectOption(label=opt, value=str(i)) 
-            for i, opt in enumerate(options)
-        ]
-        super().__init__(
-            placeholder="Choose your outcome",
-            min_values=1,
-            max_values=1,
-            options=select_options
-        )
-    
-    async def callback(self, interaction: discord.Interaction):
-        # Store the selected value and stop the view
-        self.view.selected_option = self.values[0]
-        self.view.stop()
-
-class BetView(View):
-    def __init__(self, market_data, user):
-        super().__init__(timeout=60)
-        self.market_data = market_data
-        self.user = user
-        self.selected_option = None
-        
-        # Add the select menu
-        self.add_item(OutcomeSelect(market_data['options']))
-    
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Only allow the user who reacted to use this menu
-        return interaction.user.id == self.user.id            
 
 class BettingBot(commands.Bot):
     def __init__(self):
@@ -117,7 +25,7 @@ class BettingBot(commands.Bot):
         intents.reactions = True
         super().__init__(command_prefix='!', intents=intents)
         self.db = BettingDatabase()
-
+        
     async def setup_hook(self):
         print(f'Setting up {self.user} (ID: {self.user.id})')
         
@@ -129,9 +37,9 @@ class BettingBot(commands.Bot):
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Get all open markets with their message IDs and thread IDs
+            # Get all open markets
             cursor.execute('''
-                SELECT market_id, discord_message_id, title, thread_id 
+                SELECT market_id, discord_message_id, title, thread_id
                 FROM markets 
                 WHERE status = 'open' 
                 AND discord_message_id IS NOT NULL
@@ -147,13 +55,10 @@ class BettingBot(commands.Bot):
                 ''', (market_id,))
                 options = [row[0] for row in cursor.fetchall()]
                 
-                # Store in active_markets
-                self.active_markets[int(message_id)] = {
-                    'market_id': market_id,
-                    'options': options,
-                    'title': title,
-                    'thread_id': int(thread_id) if thread_id else None  # Convert to int if exists
-                }
+                # Create Market object and store in active_markets
+                market = Market(market_id, title, options, None, message_id, thread_id)
+                market.db = self.db
+                self.active_markets[int(message_id)] = market.to_dict()
                 print(f"Loaded active market: {title}")
                 
             # Get all open bet offers with their message IDs
@@ -166,14 +71,12 @@ class BettingBot(commands.Bot):
             open_bets = cursor.fetchall()
             
             for bet_id, message_id in open_bets:
-                # Store in active_bets
                 self.active_bets[int(message_id)] = bet_id
                 print(f"Loaded active bet: {bet_id}")
                 
         print(f"Loaded {len(self.active_markets)} active markets and {len(self.active_bets)} active bets")
 
 bot = BettingBot()
-
 
 @bot.event
 async def on_ready():
@@ -199,93 +102,38 @@ async def create_market(ctx, *, market_details):
         await ctx.send("Please provide at least two options.")
         return
     
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Create market
-        cursor.execute('''
-            INSERT INTO markets (title, description, creator_id) 
-            VALUES (?, ?, ?)
-        ''', (title, title, str(ctx.author.id)))
-        
-        market_id = cursor.lastrowid
-        
-        # Insert outcomes
-        for option in options:
-            cursor.execute('''
-                INSERT INTO market_outcomes (market_id, outcome_name) 
-                VALUES (?, ?)
-            ''', (market_id, option))
-        
-        embed = discord.Embed(
-            title=title,
-            color=discord.Color.green()
-        )
-        # embed.add_field(name="Market ID", value=market_id, inline=False)
-        embed.add_field(name="Options", value="\n".join(options), inline=False)
-        # embed.add_field(name="Offer bet:", value="React with <:dennis:1328277972612026388> to offer a bet. (can be repeated)", inline=False)
-        # embed.add_field(name="Set resolver:", value="🇷 (creator is default)", inline=False)
-        # embed.add_field(name="Set timer:", value="⏲️", inline=False)
-        embed.add_field(name="help: ", value="🆘", inline=False)
-        embed.set_footer(text=f"Created by {ctx.author.name}")
-        
-        # Send embed and store the message object
-        message = await ctx.send(embed=embed)
+    # Create new market
+    market = await Market.create(bot.db, title, options, str(ctx.author.id))
+    
+    # Create message and thread
+    message, thread = await market.create_message(ctx.channel, ctx.author.name)
+    
+    # Store in active_markets
+    bot.active_markets[message.id] = market.to_dict()
 
-        await message.add_reaction("<:dennis:1328277972612026388>")
-        await message.add_reaction("🇷")
-        await message.add_reaction("⏲️")
-        await message.add_reaction("🆘")
-        
-        # Create thread
-        thread = await message.create_thread(
-            name=f"Market {market_id}: {title[:50]}{'...' if len(title) > 50 else ''}"  # Truncate long titles
-        )
-        
-        # Welcome message in thread
-        await thread.send(
-            "https://tenor.com/view/memeplex-sol-remilia-remilio-milady-gif-17952083022135309581"
-        )
-        
-        # Update the database with the message ID and thread ID
-        cursor.execute('''
-            UPDATE markets 
-            SET discord_message_id = ?, 
-                thread_id = ?
-            WHERE market_id = ?
-        ''', (str(message.id), str(thread.id), market_id))
-        
-        conn.commit()
-        
-        # Store message ID and market details for reaction handling
-        bot.active_markets[message.id] = {
-            'market_id': market_id,
-            'options': options,
-            'title': title,
-            'thread_id': thread.id
-        }
 @bot.event
 async def on_raw_reaction_add(payload):
-    # Ignore bot's own reactions
     if payload.user_id == bot.user.id:
         return
         
-    # Get the message that was reacted to
     channel = bot.get_channel(payload.channel_id)
     message = await channel.fetch_message(payload.message_id)
     user = await bot.fetch_user(payload.user_id)
     
-    if message.id in bot.active_markets: 
+    if message.id in bot.active_markets:
+        market_data = bot.active_markets[message.id]
+        market = Market.from_dict(market_data, bot.db)
+        
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
-            await handle_bet_offer_reaction(message, user, bot.active_markets[message.id])
+            await handle_bet_offer_reaction(message, user, market)
         elif str(payload.emoji) == "🇷":
-            await handle_set_market_resolver(message, user)
+            await market.handle_set_resolver(message, user)
         elif str(payload.emoji) == "⏲️":
-            await handle_set_market_timer(message, user)
+            await market.handle_set_timer(message, user)
         elif str(payload.emoji) == "🆘":
-            await handle_market_react_help(message)
-
-   # Check if this is a bet acceptance or explanation
+            await Market.handle_react_help(message)
+            
+    # bets
     elif message.id in bot.active_bets:
         bet_id = bot.active_bets[message.id]
         if str(payload.emoji) == "✅":
@@ -296,63 +144,6 @@ async def on_raw_reaction_add(payload):
             await handle_bet_cancellation(message, user, bet_id)
         elif str(payload.emoji) == "🆘":
             await handle_bet_react_help(message)
-
-async def handle_market_react_help(message):
-    help_text = (
-        "<:dennis:1328277972612026388> Offer a bet\n" 
-        "🇷 Set the resolver (creator by default) \n"
-        "⏲️ Set a timer to close the market\n"
-    )
-    help_msg = await message.channel.send(help_text)
-    await asyncio.sleep(30)
-    await help_msg.delete()
-
-async def update_market_stats(message, market_id):
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get count and volume of open bets
-        cursor.execute('''
-            SELECT COUNT(*), SUM(offer_amount)
-            FROM bet_offers 
-            WHERE market_id = ? AND status = 'open'
-        ''', (market_id,))
-        open_count, open_volume = cursor.fetchone()
-        
-        # Get count and volume of accepted bets
-        cursor.execute('''
-            SELECT COUNT(*), SUM(bo.offer_amount)
-            FROM bet_offers bo
-            JOIN accepted_bets ab ON bo.bet_id = ab.bet_id
-            WHERE bo.market_id = ? AND ab.status = 'active'
-        ''', (market_id,))
-        accepted_count, accepted_volume = cursor.fetchone()
-        
-        # Handle None values from SUM
-        open_volume = open_volume or 0
-        accepted_volume = accepted_volume or 0
-        total_volume = open_volume + accepted_volume
-
-        # Get current embed and update or add stats field
-        embed = message.embeds[0]
-        stats_text = (
-            f"**Open Bets: {open_count}**\n"
-            f"Accepted Bets: {accepted_count}\n"
-            f"Total Volume: ${total_volume:.0f}"
-        )
-        
-        # Update or add the stats field
-        stats_found = False
-        for i, field in enumerate(embed.fields):
-            if field.name == "Market Stats":
-                embed.set_field_at(i, name="Market Stats", value=stats_text, inline=False)
-                stats_found = True
-                break
-        
-        if not stats_found:
-            embed.add_field(name="Market Stats", value=stats_text, inline=False)
-            
-        await message.edit(embed=embed)
 
 async def handle_bet_react_help(message):
    help_text = (
@@ -522,67 +313,6 @@ async def handle_market_countdown(message, market_id, deadline):
             await update_market_embed(message, market_id, deadline)
         
         await asyncio.sleep(60)  # Check every minute
-
-async def handle_set_market_resolver(message, user):
-    if message.id not in bot.active_markets:
-        await message.channel.send("Error: This message is not an active market.")
-        return
-
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        market_data = bot.active_markets[message.id]
-        market_id = market_data['market_id']
-        
-        cursor.execute('''
-            SELECT creator_id, status
-            FROM markets 
-            WHERE market_id = ?
-        ''', (market_id,))
-        market = cursor.fetchone()
-        
-        if not market:
-            await message.channel.send("Error: Market not found.")
-            return
-            
-        creator_id, status = market
-        
-        # Verify the user is the creator
-        if str(user.id) != str(creator_id):
-            await message.channel.send("Only the market creator can set the resolver.")
-            return
-        if status != 'open':
-            await message.channel.send("Cannot modify a closed or resolved market.")
-            return
-
-        # Send message asking to mention the resolver
-        prompt_msg = await message.channel.send("Please mention the user you want to set as resolver.")
-        
-        try:
-            # Wait for the creator's response mentioning the resolver
-            def check(m):
-                return m.author.id == user.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
-                
-            response = await bot.wait_for('message', check=check, timeout=30.0)
-            resolver = response.mentions[0]
-
-            await response.delete()
-            
-            # Update the database
-            cursor.execute('''
-                UPDATE markets
-                SET resolver_id = ?
-                WHERE market_id = ?
-            ''', (str(resolver.id), market_id))
-            conn.commit()
-            
-            await message.channel.send(f"{resolver.mention} has been set as the resolver for this market.")
-            
-        except asyncio.TimeoutError:
-            try:
-                await prompt_msg.delete()
-            except:
-                pass
 
 async def handle_bet_cancellation(message, user, bet_id):
     with bot.db.get_connection() as conn:
