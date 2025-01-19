@@ -616,6 +616,7 @@ async def handle_bet_cancellation(message, user, bet_id):
         
         # Edit the original message to show cancelled status
         await message.edit(embed=cancelled_embed, view=None)
+        await update_market_stats(message, market_data['market_id'])
 
 async def handle_bet_explanation(message, user, bet_id):
     with bot.db.get_connection() as conn:
