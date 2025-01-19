@@ -293,6 +293,53 @@ async def on_raw_reaction_add(payload):
         elif str(payload.emoji) == "🆘":
             await handle_bet_react_help(message)
 
+async def update_market_stats(message, market_id):
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get count and volume of open bets
+        cursor.execute('''
+            SELECT COUNT(*), SUM(offer_amount)
+            FROM bet_offers 
+            WHERE market_id = ? AND status = 'open'
+        ''', (market_id,))
+        open_count, open_volume = cursor.fetchone()
+        
+        # Get count and volume of accepted bets
+        cursor.execute('''
+            SELECT COUNT(*), SUM(bo.offer_amount)
+            FROM bet_offers bo
+            JOIN accepted_bets ab ON bo.bet_id = ab.bet_id
+            WHERE bo.market_id = ? AND ab.status = 'active'
+        ''', (market_id,))
+        accepted_count, accepted_volume = cursor.fetchone()
+        
+        # Handle None values from SUM
+        open_volume = open_volume or 0
+        accepted_volume = accepted_volume or 0
+        total_volume = open_volume + accepted_volume
+
+        # Get current embed and update or add stats field
+        embed = message.embeds[0]
+        stats_text = (
+            f"📊 **Market Activity**\n"
+            f"Open Bets: {open_count}\n"
+            f"Accepted Bets: {accepted_count}\n"
+            f"Total Volume: ${total_volume:.0f}"
+        )
+        
+        # Update or add the stats field
+        stats_found = False
+        for i, field in enumerate(embed.fields):
+            if field.name == "Market Stats":
+                embed.set_field_at(i, name="Market Stats", value=stats_text, inline=False)
+                stats_found = True
+                break
+        
+        if not stats_found:
+            embed.add_field(name="Market Stats", value=stats_text, inline=False)
+            
+        await message.edit(embed=embed)
 
 async def handle_bet_react_help(message):
    help_text = (
@@ -802,7 +849,8 @@ async def handle_bet_offer_reaction(message, user, market_data):
     except asyncio.TimeoutError:
         await message.channel.send("Bet creation timed out.", delete_after=10)
     
-    # Clean up all intermediate messages
+    # Clean up all intermediate messages and update market
+    await update_market_stats(message, market_data['market_id'])
     finally:
         for msg in messages_to_delete:
             try:
@@ -880,6 +928,7 @@ async def handle_bet_acceptance(message, user, bet_id):
         embed.add_field(name=f"{user.name} Risks", value=f"${ask_amount}", inline=True)
         
         await message.channel.send(embed=embed)
+        await update_market_stats(message, market_data['market_id'])
         
         # Remove from active bets
         bot.active_bets.pop(message.id, None)
@@ -923,6 +972,7 @@ async def cancel_bet(ctx, bet_id: int):
         color=discord.Color.red()
     )
     
+    await update_market_stats(message, market_data['market_id'])
     await ctx.send(embed=embed)
 
 @bot.command(name='listmarkets')
