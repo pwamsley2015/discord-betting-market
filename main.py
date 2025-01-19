@@ -229,6 +229,10 @@ async def create_market(ctx, *, market_details):
         
         # Send embed and store the message object
         message = await ctx.send(embed=embed)
+
+        await message.add_reaction("<:dennis:1328277972612026388>")
+        await message.add_reaction("🇷")
+        await message.add_reaction("⏲️")
         
         # Create thread
         thread = await message.create_thread(
@@ -250,11 +254,6 @@ async def create_market(ctx, *, market_details):
         ''', (str(message.id), str(thread.id), market_id))
         
         conn.commit()
-        
-        # Add the betting reaction
-        await message.add_reaction("<:dennis:1328277972612026388>")
-        await message.add_reaction("🇷")
-        await message.add_reaction("⏲️")
         
         # Store message ID and market details for reaction handling
         bot.active_markets[message.id] = {
