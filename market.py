@@ -76,38 +76,38 @@ class Market:
         return message, thread
 
     async def handle_set_resolver(self, message, user):
-    """Handle 🇷 reaction to set market resolver"""
-    if str(user.id) != str(self.creator_id):
-        await message.channel.send("Only the market creator can set the resolver.")
-        return
+        """Handle 🇷 reaction to set market resolver"""
+        if str(user.id) != str(self.creator_id):
+            await message.channel.send("Only the market creator can set the resolver.")
+            return
 
-    prompt_msg = await message.channel.send("Please mention the user you want to set as resolver.")
-    
-    try:
-        def check(m):
-            return m.author.id == user.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
+        prompt_msg = await message.channel.send("Please mention the user you want to set as resolver.")
+        
+        try:
+            def check(m):
+                return m.author.id == user.id and len(m.mentions) > 0 and m.channel.id == message.channel.id
+                
+            response = await bot.wait_for('message', check=check, timeout=30.0)
+            resolver = response.mentions[0]
             
-        response = await bot.wait_for('message', check=check, timeout=30.0)
-        resolver = response.mentions[0]
-        
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE markets
-                SET resolver_id = ?
-                WHERE market_id = ?
-            ''', (str(resolver.id), self.id))
-            conn.commit()
-        
-        self.resolver_id = resolver.id
-        await message.channel.send(f"{resolver.mention} has been set as the resolver for this market.")
-        
-        await response.delete()
-        await prompt_msg.delete()  # Move this here!
-        
-    except asyncio.TimeoutError:
-        await message.channel.send("Timed out waiting for resolver selection.")
-        await prompt_msg.delete()  # And here for timeout case
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE markets
+                    SET resolver_id = ?
+                    WHERE market_id = ?
+                ''', (str(resolver.id), self.id))
+                conn.commit()
+            
+            self.resolver_id = resolver.id
+            await message.channel.send(f"{resolver.mention} has been set as the resolver for this market.")
+            
+            await response.delete()
+            await prompt_msg.delete()  # Move this here!
+            
+        except asyncio.TimeoutError:
+            await message.channel.send("Timed out waiting for resolver selection.")
+            await prompt_msg.delete()  # And here for timeout case
 
     async def handle_set_timer(self, message, user):
         """Handle ⏲️ reaction to set market timer"""
