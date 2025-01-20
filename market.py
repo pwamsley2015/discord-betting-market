@@ -658,7 +658,7 @@ class Market:
         if ask_amount == 0:
             equity_explanation = "This is a free bet for the acceptor - they risk nothing to win money."
         elif offer_amount == 0:
-            equity_explanation = "This would be a gift from the acceptor - they risk monet to win nothing."
+            equity_explanation = "This would be a gift from the acceptor - they risk money to win nothing."
         else:
             equity_needed = (ask_amount / (ask_amount + offer_amount)) * 100
             equity_explanation = f"For this bet to be EV0, you need {equity_needed:.1f}% equity."
