@@ -338,7 +338,7 @@ class Market:
             if bet_id:
                 # Add to active bets dict
                 bot.active_bets = getattr(bot, 'active_bets', {})
-                bot.active_bets[bet_id] = bet_id
+                bot.active_bets[bet_msg.id] = bet_id
                 
                 # Update market stats if needed
                 await self._update_market_stats(message)
@@ -350,6 +350,62 @@ class Market:
         finally:
             await self._cleanup_messages(messages_to_delete)
 
+    async def _get_user_response(self, message, user, bot, timeout=60.0):
+        """Helper method to get a response from user in the main channel"""
+        def check(m):
+            return m.author == user and m.channel == message.channel
+        return await bot.wait_for('message', check=check, timeout=timeout)
+
+    async def _cleanup_messages(self, messages):
+        """Helper method to clean up prompt messages"""
+        for msg in messages:
+            try:
+                await msg.delete()
+            except:
+                pass
+
+    async def _create_bet(self, user, selected_option, offer_amount, ask_amount, target_user, thread, bot):
+        """Helper method to create bet in database and thread"""
+        # Create final bet message in thread
+        final_embed = discord.Embed(
+            title=f"{user} offering {selected_option} on: {self.title}",
+            color=discord.Color.green()
+        )
+        final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
+        final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
+        final_embed.add_field(name="Bet ID", value="Pending...", inline=True)
+        final_embed.add_field(name="Market ID:", value=self.id, inline=True)
+        final_embed.add_field(name="Help: 🆘", value="", inline=False)
+
+        # Send final embed to thread
+        bet_msg = await thread.send(embed=final_embed)
+        
+        # Insert into database
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO bet_offers 
+                (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (self.id, str(user.id), selected_option, 
+                  offer_amount, ask_amount, str(target_user.id) if target_user else None, 
+                  str(bet_msg.id)))
+            bet_id = cursor.lastrowid
+            conn.commit()
+
+        # Update embed with bet ID and add reactions
+        final_embed.set_field_at(2, name="Bet ID", value=bet_id, inline=True)
+        if target_user:
+            final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
+        await bet_msg.edit(embed=final_embed)
+
+        # Add reactions
+        for reaction in ["✅", "❌", "❔", "📉", "🤏", "<:monkaS:814271443327123466>", "🆘"]:
+            await bet_msg.add_reaction(reaction)
+
+        return bet_id
+
+    
     async def handle_bet_acceptance(self, message, user, bet_id):
         """Handle ✅ reaction to accept a bet"""
         print(f"Starting bet acceptance for bet_id {bet_id}")
@@ -452,60 +508,6 @@ class Market:
                 await thread.send(f"Error accepting bet: {str(e)}")
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
-    async def _get_user_response(self, message, user, bot, timeout=60.0):
-        """Helper method to get a response from user in the main channel"""
-        def check(m):
-            return m.author == user and m.channel == message.channel
-        return await bot.wait_for('message', check=check, timeout=timeout)
-
-    async def _cleanup_messages(self, messages):
-        """Helper method to clean up prompt messages"""
-        for msg in messages:
-            try:
-                await msg.delete()
-            except:
-                pass
-
-    async def _create_bet(self, user, selected_option, offer_amount, ask_amount, target_user, thread, bot):
-        """Helper method to create bet in database and thread"""
-        # Create final bet message in thread
-        final_embed = discord.Embed(
-            title=f"{user} offering {selected_option} on: {self.title}",
-            color=discord.Color.green()
-        )
-        final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
-        final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
-        final_embed.add_field(name="Bet ID", value="Pending...", inline=True)
-        final_embed.add_field(name="Market ID:", value=self.id, inline=True)
-        final_embed.add_field(name="Help: 🆘", value="", inline=False)
-
-        # Send final embed to thread
-        bet_msg = await thread.send(embed=final_embed)
-        
-        # Insert into database
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO bet_offers 
-                (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (self.id, str(user.id), selected_option, 
-                  offer_amount, ask_amount, str(target_user.id) if target_user else None, 
-                  str(bet_msg.id)))
-            bet_id = cursor.lastrowid
-            conn.commit()
-
-        # Update embed with bet ID and add reactions
-        final_embed.set_field_at(2, name="Bet ID", value=bet_id, inline=True)
-        if target_user:
-            final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
-        await bet_msg.edit(embed=final_embed)
-
-        # Add reactions
-        for reaction in ["✅", "❌", "❔", "📉", "🤏", "<:monkaS:814271443327123466>", "🆘"]:
-            await bet_msg.add_reaction(reaction)
-
-        return bet_id
 
     async def _update_market_stats(self, message):
         """Helper method to update market statistics"""
