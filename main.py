@@ -120,10 +120,10 @@ async def on_raw_reaction_add(payload):
     message = await channel.fetch_message(payload.message_id)
     user = await bot.fetch_user(payload.user_id)
     
+    market_data = bot.active_markets[message.id]
+    market = Market.from_dict(market_data, bot.db)
+
     if message.id in bot.active_markets:
-        market_data = bot.active_markets[message.id]
-        market = Market.from_dict(market_data, bot.db)
-        
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await market.handle_bet_offer_reaction(message, user, bot)
         elif str(payload.emoji) == "🇷":
