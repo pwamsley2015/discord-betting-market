@@ -159,23 +159,7 @@ async def on_raw_reaction_add(payload):
                     elif str(payload.emoji) == "❌":
                         await market.handle_bet_cancellation(message, user, bet_id)
                     elif str(payload.emoji) == "🆘":
-                        await handle_bet_react_help(message)
-
-async def handle_bet_react_help(message):
-   help_text = (
-       "**Bet Reactions Guide:**\n"
-       "✅ Accept this bet\n" 
-       "❌ Cancel bet\n"
-       "❔ See explanation\n"
-       "📉 🗣️bad odds\n"
-       "🤏 🗣️too small\n" 
-       "<:monkaS:814271443327123466> 🗣️too big"
-   )
-   help_msg = await message.channel.send(help_text)
-   
-   # Delete help message after 20 seconds
-   await asyncio.sleep(20)
-   await help_msg.delete()
+                        await market.handle_bet_react_help(message)
 
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):

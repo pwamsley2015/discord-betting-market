@@ -692,6 +692,29 @@ class Market:
         await asyncio.sleep(30)
         await help_msg.delete()
 
+    async def handle_bet_react_help(self, message):
+        """Handle 🆘 reaction to show bet reaction help"""
+        thread = message.guild.get_thread(int(self.thread_id)) if self.thread_id else None
+        if not thread:
+            await message.channel.send("Error: Could not find market thread.", delete_after=10)
+            return
+
+        help_text = (
+            "**Bet Reactions Guide:**\n"
+            "✅ Accept this bet\n" 
+            "❌ Cancel bet\n"
+            "❔ See explanation\n"
+            "📉 🗣️bad odds\n"
+            "🤏 🗣️too small\n" 
+            "<:monkaS:814271443327123466> 🗣️too big"
+        )
+        
+        help_msg = await thread.send(help_text)
+        
+        # Delete help message after 20 seconds
+        await asyncio.sleep(20)
+        await help_msg.delete()
+
     async def update_stats(self):
         """Update market stats in the embed"""
         with self.db.get_connection() as conn:
