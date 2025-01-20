@@ -82,7 +82,7 @@ class Market:
             return
 
         # Get the thread from the stored thread_id
-        thread = message.guild.get_thread(self.thread_id)
+        thread = message.guild.get_thread(int(self.thread_id)) if self.thread_id else None
         if not thread:
             await message.channel.send("Error: Could not find the market thread.")
             return
