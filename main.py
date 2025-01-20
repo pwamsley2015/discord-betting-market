@@ -154,12 +154,12 @@ async def on_raw_reaction_add(payload):
                     market = Market.from_dict(market_data, bot.db)
                     if str(payload.emoji) == "✅":
                         await market.handle_bet_acceptance(message, user, bet_id)
-        elif str(payload.emoji) == "❔":
-            await handle_bet_explanation(message, user, bet_id)
-        elif str(payload.emoji) == "❌":
-            await handle_bet_cancellation(message, user, bet_id)
-        elif str(payload.emoji) == "🆘":
-            await handle_bet_react_help(message)
+                    elif str(payload.emoji) == "❔":
+                        await handle_bet_explanation(message, user, bet_id)
+                    elif str(payload.emoji) == "❌":
+                        await handle_bet_cancellation(message, user, bet_id)
+                    elif str(payload.emoji) == "🆘":
+                        await handle_bet_react_help(message)
 
 async def handle_bet_react_help(message):
    help_text = (
