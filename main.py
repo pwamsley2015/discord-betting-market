@@ -120,10 +120,10 @@ async def on_raw_reaction_add(payload):
     message = await channel.fetch_message(payload.message_id)
     user = await bot.fetch_user(payload.user_id)
     
-    market_data = bot.active_markets[message.id]
-    market = Market.from_dict(market_data, bot.db)
-
     if message.id in bot.active_markets:
+        market_data = bot.active_markets[message.id]
+        market = Market.from_dict(market_data, bot.db)
+        
         if str(payload.emoji) == "<:dennis:1328277972612026388>":
             await market.handle_bet_offer_reaction(message, user, bot)
         elif str(payload.emoji) == "🇷":
@@ -136,8 +136,24 @@ async def on_raw_reaction_add(payload):
     # bets
     elif message.id in bot.active_bets:
         bet_id = bot.active_bets[message.id]
-        if str(payload.emoji) == "✅":
-            await market.handle_bet_acceptance(message, user, bet_id)
+        # Get market_id from bet_offers table
+        with bot.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT market_id FROM bet_offers WHERE bet_id = ?', (bet_id,))
+            result = cursor.fetchone()
+            if result:
+                market_id = result[0]
+                # Look up market data from active_markets using market_id
+                market_data = None
+                for m in bot.active_markets.values():
+                    if m['market_id'] == market_id:
+                        market_data = m
+                        break
+                
+                if market_data:
+                    market = Market.from_dict(market_data, bot.db)
+                    if str(payload.emoji) == "✅":
+                        await market.handle_bet_acceptance(message, user, bet_id)
         elif str(payload.emoji) == "❔":
             await handle_bet_explanation(message, user, bet_id)
         elif str(payload.emoji) == "❌":
