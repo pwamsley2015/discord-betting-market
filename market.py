@@ -342,7 +342,7 @@ class Market:
                 bot.active_bets[bet_msg.id] = bet_id
                 
                 # Update market stats if needed
-                await self._update_market_stats(message)
+                await self.update_stats()
 
         except ValueError as e:
             await message.channel.send(f"Invalid input: {str(e)}. Bet creation cancelled.", delete_after=10)
@@ -416,36 +416,25 @@ class Market:
             cursor = conn.cursor()
             print(f"Fetching bet info from database...")
             cursor.execute('''
-                SELECT 
-                    b.bet_id,
-                    b.market_id,
-                    b.bettor_id,
-                    b.outcome,
-                    b.offer_amount,
-                    b.ask_amount,
-                    b.status,
-                    b.target_user_id,
-                    b.discord_message_id,
-                    m.status as market_status,
-                    m.thread_id
+                SELECT b.*, m.status as market_status, m.thread_id
                 FROM bet_offers b
                 JOIN markets m ON b.market_id = m.market_id
                 WHERE b.bet_id = ?
             ''', (bet_id,))
             bet = cursor.fetchone()
-            print(f"Fetched bet: {bet}")
+            print(f"Raw bet data type: {type(bet)}")
+            print(f"Raw bet data: {bet}")
 
             if not bet:
                 print("Bet not found in database")
                 await message.channel.send("Error: Bet not found.", delete_after=10)
                 return
 
-            # Convert to dict for easier access
-            bet = dict(bet)
-            print(f"Thread ID from bet: {bet.get('thread_id')}")
+            # Unpack tuple into named variables for clarity
+            bet_id, market_id, bettor_id, outcome, offer_amount, ask_amount, status, created_at, target_user_id, discord_message_id, market_status, thread_id = bet
             
             # Get thread
-            thread = message.guild.get_thread(int(bet['thread_id'])) if bet['thread_id'] else None
+            thread = message.guild.get_thread(int(thread_id)) if thread_id else None
             print(f"Retrieved thread object: {thread}")
             if not thread:
                 await message.channel.send("Error: Could not find market thread.", delete_after=10)
@@ -453,26 +442,26 @@ class Market:
 
             try:
                 print(f"Validating bet acceptance...")
-                print(f"Bet status: {bet['status']}")
-                print(f"Market status: {bet['market_status']}")
-                print(f"Bettor ID: {bet['bettor_id']}")
-                print(f"Target user ID: {bet.get('target_user_id')}")
+                print(f"Bet status: {status}")
+                print(f"Market status: {market_status}")
+                print(f"Bettor ID: {bettor_id}")
+                print(f"Target user ID: {target_user_id}")
                 print(f"User trying to accept: {user.id}")
 
                 # Validate bet can be accepted
-                if bet['status'] != 'open':
+                if status != 'open':
                     await thread.send(f"{user.mention} This bet is no longer open for acceptance.")
                     return
 
-                if bet['market_status'] != 'open':
+                if market_status != 'open':
                     await thread.send(f"{user.mention} This market is closed.")
                     return
 
-                if str(user.id) == bet['bettor_id']:
+                if str(user.id) == bettor_id:
                     await thread.send(f"{user.mention} You cannot accept your own bet.")
                     return
 
-                if bet['target_user_id'] and str(user.id) != bet['target_user_id']:
+                if target_user_id and str(user.id) != target_user_id:
                     await thread.send(f"{user.mention} This bet was offered to a specific user.")
                     return
 
@@ -520,7 +509,6 @@ class Market:
                 await thread.send(f"Error accepting bet: {str(e)}")
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
-
     @staticmethod
     async def handle_react_help(message):
         """Handle 🆘 reaction on market"""
