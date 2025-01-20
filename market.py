@@ -415,16 +415,25 @@ class Market:
             cursor = conn.cursor()
             print(f"Fetching bet info from database...")
             cursor.execute('''
-                SELECT b.*, m.status as market_status, m.thread_id
+                SELECT 
+                    b.bet_id,
+                    b.market_id,
+                    b.bettor_id,
+                    b.outcome,
+                    b.offer_amount,
+                    b.ask_amount,
+                    b.status,
+                    b.target_user_id,
+                    b.discord_message_id,
+                    m.status as market_status,
+                    m.thread_id
                 FROM bet_offers b
                 JOIN markets m ON b.market_id = m.market_id
                 WHERE b.bet_id = ?
             ''', (bet_id,))
             bet = cursor.fetchone()
             print(f"Fetched bet: {bet}")
-            print(f"Raw bet data type: {type(bet)}")
-            print(f"Raw bet data: {bet}")  # Let's see what we're getting
-            
+
             if not bet:
                 print("Bet not found in database")
                 await message.channel.send("Error: Bet not found.", delete_after=10)
@@ -510,7 +519,6 @@ class Market:
                 await thread.send(f"Error accepting bet: {str(e)}")
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
-
     async def _update_market_stats(self, message):
         """Helper method to update market statistics"""
         # TODO: Implement market stats update logic
