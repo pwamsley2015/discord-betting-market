@@ -325,7 +325,7 @@ class Market:
             ask_amount = float(winnings_msg.content)
            
             # Create bet in database and thread
-            bet_id = await self._create_bet(
+            bet_id, bet_msg = await self._create_bet(
                 user=user,
                 selected_option=selected_option,
                 offer_amount=offer_amount,
@@ -403,7 +403,7 @@ class Market:
         for reaction in ["✅", "❌", "❔", "📉", "🤏", "<:monkaS:814271443327123466>", "🆘"]:
             await bet_msg.add_reaction(reaction)
 
-        return bet_id
+        return bet_id, bet_msg
 
     
     async def handle_bet_acceptance(self, message, user, bet_id):
