@@ -4,6 +4,7 @@ import asyncio
 import re
 import pytz
 from views import BetView, OutcomeSelect
+import sqlite3
 
 class Market:
     def __init__(self, id, title, options, creator_id, message_id=None, 
@@ -519,10 +520,6 @@ class Market:
                 await thread.send(f"Error accepting bet: {str(e)}")
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
-    async def _update_market_stats(self, message):
-        """Helper method to update market statistics"""
-        # TODO: Implement market stats update logic
-        pass
 
     @staticmethod
     async def handle_react_help(message):
