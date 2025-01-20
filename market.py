@@ -121,8 +121,110 @@ class Market:
         if str(user.id) != str(self.creator_id):
             await message.channel.send("Only the market creator can set the timer.")
             return
-        else:
-            await message.channel.send("Timer feature is temporarily disasbled.")
+
+        # Get the thread
+        thread = message.guild.get_thread(int(self.thread_id)) if self.thread_id else None
+        if not thread:
+            await message.channel.send("Error: Could not find the market thread.")
+            return
+
+        prompt_msg = await message.channel.send(
+            "When should this market close?\n"
+            "You can use:\n"
+            "• Duration format: `24h`, `7d`, `3d12h30m`\n"
+            "• Specific time: `2025-01-20 18:00`"
+        )
+        
+        try:
+            def check(m):
+                return m.author.id == user.id and m.channel.id == message.channel.id
+                
+            response = await bot.wait_for('message', check=check, timeout=30.0)
+            
+            # Parse the time input
+            time_str = response.content.lower().strip()
+            deadline = None
+            
+            # Try parsing as duration
+            duration_pattern = re.compile(r'^(\d+d)?(\d+h)?(\d+m)?$')
+            if duration_match := duration_pattern.match(time_str):
+                days = 0
+                hours = 0
+                minutes = 0
+                if duration_match.group(1):
+                    days = int(duration_match.group(1)[:-1])
+                if duration_match.group(2):
+                    hours = int(duration_match.group(2)[:-1])
+                if duration_match.group(3):
+                    minutes = int(duration_match.group(3)[:-1])
+                    
+                deadline = datetime.datetime.now() + datetime.timedelta(days=days, hours=hours, minutes=minutes)
+            
+            # Try parsing as specific time
+            else:
+                try:
+                    deadline = datetime.datetime.strptime(time_str, '%Y-%m-%d %H:%M')
+                except ValueError:
+                    await message.channel.send("Invalid time format. Please use either duration (e.g., '24h', '7d', '3d12h30m') or specific time (e.g., '2025-01-20 18:00')")
+                    return
+
+            # Validate deadline is in the future
+            if deadline <= datetime.datetime.now():
+                await message.channel.send("The deadline must be in the future.")
+                return
+
+            # Update the database
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE markets
+                    SET close_time = ?
+                    WHERE market_id = ?
+                ''', (deadline.isoformat(), self.id))
+                conn.commit()
+
+            # Delete user's response and prompt
+            await response.delete()
+            await prompt_msg.delete()
+            
+            # Schedule the countdown job
+            bot.loop.create_task(self.handle_market_countdown(thread, deadline, bot))
+            
+            # Convert deadline to Pacific time for display
+            pacific = pytz.timezone('America/Los_Angeles')
+            deadline_pacific = deadline.astimezone(pacific)
+            await thread.send(f"⏲️ Market will close at {deadline_pacific.strftime('%Y-%m-%d %I:%M %p')} PT")
+                
+        except asyncio.TimeoutError:
+            await prompt_msg.delete()
+            timeout_msg = await message.channel.send("Timed out waiting for time input.")
+            await asyncio.sleep(5)
+            await timeout_msg.delete()
+
+    async def handle_market_countdown(self, thread, deadline, bot):
+        """Handle countdown and notifications for market closing"""
+        while True:
+            now = datetime.datetime.now()
+            if now >= deadline:
+                # Close the market
+                with self.db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE markets
+                        SET status = 'closed'
+                        WHERE market_id = ?
+                    ''', (self.id,))
+                    conn.commit()
+                
+                await thread.send(f"🔒 This market is now closed for betting!")
+                break
+            
+            # Send reminder at 1 hour remaining
+            time_remaining = deadline - now
+            if datetime.timedelta(hours=1) <= time_remaining <= datetime.timedelta(hours=1, minutes=1):
+                await thread.send(f"⚠️ This market closes in 1 hour!")
+            
+            await asyncio.sleep(60)  # Check every minute
 
     @staticmethod
     async def handle_react_help(message):
