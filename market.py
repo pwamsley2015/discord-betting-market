@@ -643,7 +643,7 @@ class Market:
         )
         
         # Get user names
-        bettor = await user.client.fetch_user(int(bettor_id))
+        bettor = message.client
         bettor_name = bettor.name if bettor else "Unknown"
         
         target_name = "anyone"
