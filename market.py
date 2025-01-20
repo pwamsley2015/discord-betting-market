@@ -642,22 +642,17 @@ class Market:
             color=discord.Color.blue()
         )
         
-        # Get user names
-        bettor = message.client
-        bettor_name = bettor.name if bettor else "Unknown"
-        
-        target_name = "anyone"
-        if target_user_id:
-            target = await user.client.fetch_user(int(target_user_id))
-            target_name = target.name if target else "Unknown"
+        # Create mentions from IDs
+        bettor_mention = f"<@{bettor_id}>"
+        target_mention = "anyone" if not target_user_id else f"<@{target_user_id}>"
         
         # Explain what happens for each outcome
         explanation = "If accepted:\n"
         for possible_outcome in outcomes:
             if possible_outcome == outcome:
-                explanation += f"- If \"{possible_outcome}\": {bettor_name} wins ${ask_amount}, acceptor loses ${ask_amount}\n"
+                explanation += f"- If \"{possible_outcome}\": {bettor_mention} wins ${ask_amount}, acceptor loses ${ask_amount}\n"
             else:
-                explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer_amount}, acceptor wins ${offer_amount}\n"
+                explanation += f"- If \"{possible_outcome}\": {bettor_mention} loses ${offer_amount}, acceptor wins ${offer_amount}\n"
         
         # Add equity explanation based on whether it's a bribe/gift
         if ask_amount == 0:
@@ -678,7 +673,7 @@ class Market:
         # Add who can accept
         embed.add_field(
             name="Who can accept?",
-            value=f"This bet can be accepted by {target_name}",
+            value=f"This bet can be accepted by {target_mention}",
             inline=False
         )
         
