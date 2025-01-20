@@ -155,7 +155,7 @@ async def on_raw_reaction_add(payload):
                     if str(payload.emoji) == "✅":
                         await market.handle_bet_acceptance(message, user, bet_id)
                     elif str(payload.emoji) == "❔":
-                        await handle_bet_explanation(message, user, bet_id)
+                        await market.handle_bet_explanation(message, user, bet_id)
                     elif str(payload.emoji) == "❌":
                         await market.handle_bet_cancellation(message, user, bet_id)
                     elif str(payload.emoji) == "🆘":
@@ -176,128 +176,6 @@ async def handle_bet_react_help(message):
    # Delete help message after 20 seconds
    await asyncio.sleep(20)
    await help_msg.delete()
-
-async def handle_bet_cancellation(message, user, bet_id):
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # First get the bet details including market_id
-        cursor.execute('''
-            SELECT bet_offers.bettor_id, bet_offers.status, bet_offers.market_id 
-            FROM bet_offers 
-            WHERE bet_offers.bet_id = ?
-        ''', (bet_id,))
-        bet = cursor.fetchone()
-        
-        if not bet:
-            await message.channel.send("Bet not found.", delete_after=10)
-            return
-            
-        bettor_id, status, market_id = bet
-        
-        # Verify user is the bettor
-        if str(user.id) != str(bettor_id):
-            await message.channel.send("Only the bet creator can cancel this bet.", delete_after=10)
-            return
-            
-        if status != 'open':
-            await message.channel.send("This bet is not open for cancellation.", delete_after=10)
-            return
-            
-        # Cancel the bet
-        cursor.execute('''
-            UPDATE bet_offers 
-            SET status = 'cancelled' 
-            WHERE bet_id = ?
-        ''', (bet_id,))
-        conn.commit()
-
-        # Find the market message from active_markets
-        for msg_id, data in bot.active_markets.items():
-            if data['market_id'] == market_id:
-                market_message = await message.channel.fetch_message(msg_id)
-                await update_market_stats(market_message, market_id)
-                break
-        
-        # Clean up the bet message
-        await message.delete()
-async def handle_bet_explanation(message, user, bet_id):
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get bet details
-        cursor.execute('''
-            SELECT b.bettor_id, b.outcome, b.offer_amount, b.ask_amount, 
-                   b.target_user_id, m.title, m.market_id
-            FROM bet_offers b
-            JOIN markets m ON b.market_id = m.market_id
-            WHERE b.bet_id = ?
-        ''', (bet_id,))
-        
-        bet = cursor.fetchone()
-        if not bet:
-            await message.channel.send("Bet not found.", delete_after=10)
-            return
-            
-        bettor_id, outcome, offer, ask, target_id, title, market_id = bet
-        
-        # Get all possible outcomes for this market
-        cursor.execute('''
-            SELECT outcome_name 
-            FROM market_outcomes 
-            WHERE market_id = ?
-        ''', (market_id,))
-        outcomes = [row[0] for row in cursor.fetchall()]
-
-    # Create explanation embed
-    embed = discord.Embed(
-        title=f"Bet #{bet_id} Explained",
-        description=f"Market: {title}",
-        color=discord.Color.blue()
-    )
-    
-    # Get user names
-    bettor = await bot.fetch_user(int(bettor_id))
-    bettor_name = bettor.name if bettor else "Unknown"
-    
-    target_name = "anyone"
-    if target_id:
-        target = await bot.fetch_user(int(target_id))
-        target_name = target.name if target else "Unknown"
-    
-    # Explain what happens for each outcome
-    explanation = "If accepted:\n"
-    for possible_outcome in outcomes:
-        if possible_outcome == outcome:
-            explanation += f"- If \"{possible_outcome}\": {bettor_name} wins ${ask}, acceptor loses ${ask}\n"
-        else:
-            explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer}, acceptor wins ${offer}\n"
-    
-    # Add equity explanation based on whether it's a bribe/gift
-    if ask == 0:
-        equity_explanation = "This is a free bet for the acceptor - they risk nothing to win money."
-    elif offer == 0:
-        equity_explanation = "This is a pure gift from the bettor - they give money with no chance of return."
-    else:
-        equity_needed = (ask / (ask + offer)) * 100
-        equity_explanation = f"For this bet to be EV0, you need {equity_needed:.1f}% equity."
-
-    explanation += f"\n{equity_explanation}"
-    
-    embed.add_field(
-        name="Pot odds", 
-        value=explanation,
-        inline=False
-    )
-    
-    # Add who can accept
-    embed.add_field(
-        name="Who can accept?",
-        value=f"This bet can be accepted by {target_name}",
-        inline=False
-    )
-    
-    await message.channel.send(embed=embed)
 
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):

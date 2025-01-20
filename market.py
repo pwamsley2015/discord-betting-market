@@ -596,6 +596,95 @@ class Market:
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
 
+    async def handle_bet_explanation(self, message, user, bet_id):
+        """Handle ❔ reaction to explain a bet's odds and outcomes"""
+        print(f"Starting bet explanation for bet_id {bet_id}")
+        
+        # Get bet info from database
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            print(f"Fetching bet info from database...")
+            cursor.execute('''
+                SELECT b.*, m.status as market_status, m.thread_id, m.title
+                FROM bet_offers b
+                JOIN markets m ON b.market_id = m.market_id
+                WHERE b.bet_id = ?
+            ''', (bet_id,))
+            bet = cursor.fetchone()
+
+            if not bet:
+                print("Bet not found in database")
+                await message.channel.send("Error: Bet not found.", delete_after=10)
+                return
+
+            # Unpack tuple into named variables
+            bet_id, market_id, bettor_id, outcome, offer_amount, ask_amount, status, created_at, target_user_id, discord_message_id, market_status, thread_id, title = bet
+            
+            # Get thread
+            thread = message.guild.get_thread(int(thread_id)) if thread_id else None
+            print(f"Retrieved thread object: {thread}")
+            if not thread:
+                await message.channel.send("Error: Could not find market thread.", delete_after=10)
+                return
+                
+            # Get all possible outcomes for this market
+            cursor.execute('''
+                SELECT outcome_name 
+                FROM market_outcomes 
+                WHERE market_id = ?
+            ''', (market_id,))
+            outcomes = [row[0] for row in cursor.fetchall()]
+
+        # Create explanation embed
+        embed = discord.Embed(
+            title=f"Bet #{bet_id} Explained",
+            description=f"Market: {title}",
+            color=discord.Color.blue()
+        )
+        
+        # Get user names
+        bettor = await user.client.fetch_user(int(bettor_id))
+        bettor_name = bettor.name if bettor else "Unknown"
+        
+        target_name = "anyone"
+        if target_user_id:
+            target = await user.client.fetch_user(int(target_user_id))
+            target_name = target.name if target else "Unknown"
+        
+        # Explain what happens for each outcome
+        explanation = "If accepted:\n"
+        for possible_outcome in outcomes:
+            if possible_outcome == outcome:
+                explanation += f"- If \"{possible_outcome}\": {bettor_name} wins ${ask_amount}, acceptor loses ${ask_amount}\n"
+            else:
+                explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer_amount}, acceptor wins ${offer_amount}\n"
+        
+        # Add equity explanation based on whether it's a bribe/gift
+        if ask_amount == 0:
+            equity_explanation = "This is a free bet for the acceptor - they risk nothing to win money."
+        elif offer_amount == 0:
+            equity_explanation = "This is a pure gift from the bettor - they give money with no chance of return."
+        else:
+            equity_needed = (ask_amount / (ask_amount + offer_amount)) * 100
+            equity_explanation = f"For this bet to be EV0, you need {equity_needed:.1f}% equity."
+        explanation += f"\n{equity_explanation}"
+        
+        embed.add_field(
+            name="Pot odds", 
+            value=explanation,
+            inline=False
+        )
+        
+        # Add who can accept
+        embed.add_field(
+            name="Who can accept?",
+            value=f"This bet can be accepted by {target_name}",
+            inline=False
+        )
+        
+        # Send to thread instead of main channel
+        await thread.send(embed=embed)
+
     @staticmethod
     async def handle_react_help(message):
         """Handle 🆘 reaction on market"""
