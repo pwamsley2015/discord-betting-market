@@ -422,7 +422,9 @@ class Market:
             ''', (bet_id,))
             bet = cursor.fetchone()
             print(f"Fetched bet: {bet}")
-
+            print(f"Raw bet data type: {type(bet)}")
+            print(f"Raw bet data: {bet}")  # Let's see what we're getting
+            
             if not bet:
                 print("Bet not found in database")
                 await message.channel.send("Error: Bet not found.", delete_after=10)
