@@ -3,6 +3,7 @@ import datetime
 import asyncio
 import re
 import pytz
+from views import BetView, OutcomeSelect
 
 class Market:
     def __init__(self, id, title, options, creator_id, message_id=None, 
@@ -227,6 +228,187 @@ class Market:
                 await thread.send(f"⚠️ This market closes in 1 hour!")
             
             await asyncio.sleep(60)  # Check every minute
+
+    async def handle_bet_offer_reaction(self, message, user, bot):
+        """Handle the dennis emoji reaction to create a bet offer"""
+        messages_to_delete = []
+        
+        # Get the thread
+        thread = message.guild.get_thread(int(self.thread_id)) if self.thread_id else None
+        if not thread:
+            await message.channel.send("Error: Could not find market thread.", delete_after=10)
+            return
+
+        # Verify market is open
+        if self.status != 'open':
+            await message.channel.send("This market is not open for betting.", delete_after=10)
+            return
+
+        # Initialize bet creation flow in main channel
+        bet_embed = discord.Embed(
+            title="Create Bet",
+            description=f"{user.mention} is creating a bet offer.",
+            color=discord.Color.blue()
+        )
+        bet_embed.add_field(
+            name="Step 1: Choose your option",
+            value="Use the dropdown menu below to select your outcome",
+            inline=False
+        )
+       
+        view = BetView(self.to_dict(), user)  # Convert market to dict for compatibility
+        prompt_msg = await message.channel.send(embed=bet_embed, view=view)
+        messages_to_delete.append(prompt_msg)
+       
+        await view.wait()
+       
+        if view.selected_option is None:
+            await message.channel.send("Bet creation timed out.", delete_after=10)
+            await self._cleanup_messages(messages_to_delete)
+            return
+           
+        selected_index = int(view.selected_option)
+        selected_option = self.options[selected_index]  # Use self.options instead of dict access
+
+        # Target user prompt - still in main channel
+        target_embed = discord.Embed(
+            title="Create Bet",
+            description=f"Selected: {selected_option}",
+            color=discord.Color.blue()
+        )
+        target_embed.add_field(
+            name="Step 2: Target User (Optional)",
+            value="Mention a user to offer this bet to them specifically, or type 'skip' to offer to anyone",
+            inline=False
+        )
+        await prompt_msg.edit(embed=target_embed, view=None)
+
+        try:
+            target_msg = await self._get_user_response(message, user, bot)
+            messages_to_delete.append(target_msg)
+            target_user = None
+            if target_msg.content.lower() != 'skip' and len(target_msg.mentions) > 0:
+                target_user = target_msg.mentions[0]
+           
+            # Amount prompt
+            amount_embed = discord.Embed(
+                title="Create Bet",
+                description=f"Selected: {selected_option}",
+                color=discord.Color.blue()
+            )
+            amount_embed.add_field(
+                name="Step 3: Risk Amount",
+                value="How much would you like to risk? (in $)",
+                inline=False
+            )
+            await prompt_msg.edit(embed=amount_embed)
+           
+            amount_msg = await self._get_user_response(message, user, bot)
+            messages_to_delete.append(amount_msg)
+            offer_amount = float(amount_msg.content)
+           
+            # Winnings prompt
+            winnings_embed = discord.Embed(
+                title="Create Bet",
+                description=f"Selected: {selected_option}\nRisk Amount: ${offer_amount}",
+                color=discord.Color.blue()
+            )
+            winnings_embed.add_field(
+                name="Step 4: Desired Winnings",
+                value="How much would you like to win? (in $)",
+                inline=False
+            )
+            await prompt_msg.edit(embed=winnings_embed)
+           
+            winnings_msg = await self._get_user_response(message, user, bot)
+            messages_to_delete.append(winnings_msg)
+            ask_amount = float(winnings_msg.content)
+           
+            # Create bet in database and thread
+            bet_id = await self._create_bet(
+                user=user,
+                selected_option=selected_option,
+                offer_amount=offer_amount,
+                ask_amount=ask_amount,
+                target_user=target_user,
+                thread=thread,
+                bot=bot
+            )
+
+            if bet_id:
+                # Add to active bets dict
+                bot.active_bets = getattr(bot, 'active_bets', {})
+                bot.active_bets[bet_id] = bet_id
+                
+                # Update market stats if needed
+                await self._update_market_stats(message)
+
+        except ValueError as e:
+            await message.channel.send(f"Invalid input: {str(e)}. Bet creation cancelled.", delete_after=10)
+        except asyncio.TimeoutError:
+            await message.channel.send("Bet creation timed out.", delete_after=10)
+        finally:
+            await self._cleanup_messages(messages_to_delete)
+
+    async def _get_user_response(self, message, user, bot, timeout=60.0):
+        """Helper method to get a response from user in the main channel"""
+        def check(m):
+            return m.author == user and m.channel == message.channel
+        return await bot.wait_for('message', check=check, timeout=timeout)
+
+    async def _cleanup_messages(self, messages):
+        """Helper method to clean up prompt messages"""
+        for msg in messages:
+            try:
+                await msg.delete()
+            except:
+                pass
+
+    async def _create_bet(self, user, selected_option, offer_amount, ask_amount, target_user, thread, bot):
+        """Helper method to create bet in database and thread"""
+        # Create final bet message in thread
+        final_embed = discord.Embed(
+            title=f"{user} offering {selected_option} on: {self.title}",
+            color=discord.Color.green()
+        )
+        final_embed.add_field(name="Risking", value=f"${offer_amount}", inline=True)
+        final_embed.add_field(name="To Win", value=f"${ask_amount}", inline=True)
+        final_embed.add_field(name="Bet ID", value="Pending...", inline=True)
+        final_embed.add_field(name="Market ID:", value=self.id, inline=True)
+        final_embed.add_field(name="Help: 🆘", value="", inline=False)
+
+        # Send final embed to thread
+        bet_msg = await thread.send(embed=final_embed)
+        
+        # Insert into database
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO bet_offers 
+                (market_id, bettor_id, outcome, offer_amount, ask_amount, target_user_id, discord_message_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (self.id, str(user.id), selected_option, 
+                  offer_amount, ask_amount, str(target_user.id) if target_user else None, 
+                  str(bet_msg.id)))
+            bet_id = cursor.lastrowid
+            conn.commit()
+
+        # Update embed with bet ID and add reactions
+        final_embed.set_field_at(2, name="Bet ID", value=bet_id, inline=True)
+        if target_user:
+            final_embed.add_field(name="Offered To", value=target_user.mention, inline=False)
+        await bet_msg.edit(embed=final_embed)
+
+        # Add reactions
+        for reaction in ["✅", "❌", "❔", "📉", "🤏", "<:monkaS:814271443327123466>", "🆘"]:
+            await bet_msg.add_reaction(reaction)
+
+        return bet_id
+
+    async def _update_market_stats(self, message):
+        """Helper method to update market statistics"""
+        # TODO: Implement market stats update logic
+        pass
 
     @staticmethod
     async def handle_react_help(message):
