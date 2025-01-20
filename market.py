@@ -350,6 +350,86 @@ class Market:
         finally:
             await self._cleanup_messages(messages_to_delete)
 
+    async def handle_bet_acceptance(self, message, user, bet_id):
+        """Handle ✅ reaction to accept a bet"""
+        
+        # Get bet info from database
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT b.*, m.status as market_status, m.thread_id
+                FROM bet_offers b
+                JOIN markets m ON b.market_id = m.market_id
+                WHERE b.bet_id = ?
+            ''', (bet_id,))
+            bet = cursor.fetchone()
+
+            if not bet:
+                await message.channel.send("Error: Bet not found.", delete_after=10)
+                return
+
+            # Convert to dict for easier access
+            bet = dict(bet)
+            
+            # Get thread
+            thread = message.guild.get_thread(int(bet['thread_id'])) if bet['thread_id'] else None
+            if not thread:
+                await message.channel.send("Error: Could not find market thread.", delete_after=10)
+                return
+
+            # Validate bet can be accepted
+            if bet['status'] != 'open':
+                await thread.send(f"{user.mention} This bet is no longer open for acceptance.")
+                return
+
+            if bet['market_status'] != 'open':
+                await thread.send(f"{user.mention} This market is closed.")
+                return
+
+            if str(user.id) == bet['bettor_id']:
+                await thread.send(f"{user.mention} You cannot accept your own bet.")
+                return
+
+            if bet['target_user_id'] and str(user.id) != bet['target_user_id']:
+                await thread.send(f"{user.mention} This bet was offered to a specific user.")
+                return
+
+            # Create accepted bet record and update bet status
+            try:
+                cursor.execute('''
+                    INSERT INTO accepted_bets 
+                    (bet_id, acceptor_id)
+                    VALUES (?, ?)
+                ''', (bet_id, str(user.id)))
+                
+                cursor.execute('''
+                    UPDATE bet_offers
+                    SET status = 'accepted'
+                    WHERE bet_id = ?
+                ''', (bet_id,))
+                
+                conn.commit()
+
+                # Update embed to show acceptance
+                embed = message.embeds[0]
+                embed.color = discord.Color.gold()
+                embed.add_field(
+                    name="Status", 
+                    value=f"Accepted by {user.mention}",
+                    inline=False
+                )
+                await message.edit(embed=embed)
+
+                # Remove accept/cancel reactions but keep help/info ones
+                for reaction in ["✅", "❌"]:
+                    await message.clear_reaction(reaction)
+
+                await thread.send(f"🤝 Bet {bet_id} has been accepted by {user.mention}!")
+
+            except Exception as e:
+                await thread.send(f"Error accepting bet: {str(e)}")
+                conn.rollback()
+
     async def _get_user_response(self, message, user, bot, timeout=60.0):
         """Helper method to get a response from user in the main channel"""
         def check(m):

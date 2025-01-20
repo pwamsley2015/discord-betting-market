@@ -137,7 +137,7 @@ async def on_raw_reaction_add(payload):
     elif message.id in bot.active_bets:
         bet_id = bot.active_bets[message.id]
         if str(payload.emoji) == "✅":
-            await handle_bet_acceptance(message, user, bet_id)
+            await market.handle_bet_acceptance(message, user, bet_id)
         elif str(payload.emoji) == "❔":
             await handle_bet_explanation(message, user, bet_id)
         elif str(payload.emoji) == "❌":
@@ -282,81 +282,6 @@ async def handle_bet_explanation(message, user, bet_id):
     )
     
     await message.channel.send(embed=embed)
-
-async def handle_bet_acceptance(message, user, bet_id):
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get bet offer details
-        cursor.execute('''
-            SELECT bo.market_id, bo.bettor_id, bo.status, bo.outcome, 
-                   bo.offer_amount, bo.ask_amount, m.status as market_status,
-                   bo.target_user_id, m.title, m.description
-            FROM bet_offers bo
-            JOIN markets m ON bo.market_id = m.market_id
-            WHERE bo.bet_id = ?
-        ''', (bet_id,))
-        
-        bet = cursor.fetchone()
-        if not bet:
-            await message.channel.send("Bet offer not found.", delete_after=10)
-            return
-        
-        market_id, bettor_id, bet_status, outcome, offer_amount, ask_amount, market_status, target_user_id, title, description = bet
-        
-        # Validation checks
-        if str(user.id) == bettor_id:
-            await message.channel.send("You cannot accept your own bet offer.", delete_after=10)
-            return
-        
-        if bet_status != 'open':
-            await message.channel.send("This bet offer is no longer available.", delete_after=10)
-            return
-        
-        if market_status != 'open':
-            await message.channel.send("This market is no longer open for betting.", delete_after=10)
-            return
-
-        # Check if bet was targeted at a specific user
-        if target_user_id and str(user.id) != target_user_id:
-            await message.channel.send("This bet was offered to a specific user only.", delete_after=10)
-            return
-        
-        # Update bet offer status and create accepted bet record
-        cursor.execute('''
-            UPDATE bet_offers 
-            SET status = 'accepted' 
-            WHERE bet_id = ?
-        ''', (bet_id,))
-        
-        cursor.execute('''
-            INSERT INTO accepted_bets (bet_id, acceptor_id) 
-            VALUES (?, ?)
-        ''', (bet_id, str(user.id)))
-        
-        conn.commit()
-        
-        # Get bettor's username for the embed
-        bettor = await bot.fetch_user(int(bettor_id))
-        bettor_name = bettor.name if bettor else "Unknown User"
-        
-        embed = discord.Embed(
-            title="Bet Accepted!",
-            description=f"**Market:** {title}\n\nBet ID: {bet_id}",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Market ID", value=market_id, inline=False)
-        embed.add_field(name="Outcome", value=outcome, inline=False)
-        embed.add_field(name="Original Bettor", value=bettor_name, inline=True)
-        embed.add_field(name="Acceptor", value=user.name, inline=True)
-        embed.add_field(name=f"{bettor_name} Risks", value=f"${offer_amount}", inline=True)
-        embed.add_field(name=f"{user.name} Risks", value=f"${ask_amount}", inline=True)
-        
-        await message.channel.send(embed=embed)
-        await update_market_stats(message, market_data['market_id'])
-        
-        # Remove from active bets
-        bot.active_bets.pop(message.id, None)
 
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):
