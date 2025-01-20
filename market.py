@@ -406,7 +406,6 @@ class Market:
 
         return bet_id, bet_msg
 
-    
     async def handle_bet_acceptance(self, message, user, bet_id):
         """Handle ✅ reaction to accept a bet"""
         print(f"Starting bet acceptance for bet_id {bet_id}")
@@ -509,6 +508,94 @@ class Market:
                 await thread.send(f"Error accepting bet: {str(e)}")
                 conn.rollback()
                 raise  # Re-raise to see full traceback in logs
+    
+    async def handle_bet_cancellation(self, message, user, bet_id):
+    """Handle ❌ reaction to cancel a bet"""
+    print(f"Starting bet cancellation for bet_id {bet_id}")
+    
+    # Get bet info from database
+    with self.db.get_connection() as conn:
+        cursor = conn.cursor()
+        print(f"Fetching bet info from database...")
+        cursor.execute('''
+            SELECT b.*, m.status as market_status, m.thread_id
+            FROM bet_offers b
+            JOIN markets m ON b.market_id = m.market_id
+            WHERE b.bet_id = ?
+        ''', (bet_id,))
+        bet = cursor.fetchone()
+        print(f"Raw bet data type: {type(bet)}")
+        print(f"Raw bet data: {bet}")
+
+        if not bet:
+            print("Bet not found in database")
+            await message.channel.send("Error: Bet not found.", delete_after=10)
+            return
+
+        # Unpack tuple into named variables for clarity
+        bet_id, market_id, bettor_id, outcome, offer_amount, ask_amount, status, created_at, target_user_id, discord_message_id, market_status, thread_id = bet
+        
+        # Get thread
+        thread = message.guild.get_thread(int(thread_id)) if thread_id else None
+        print(f"Retrieved thread object: {thread}")
+        if not thread:
+            await message.channel.send("Error: Could not find market thread.", delete_after=10)
+            return
+
+        try:
+            print(f"Validating bet cancellation...")
+            print(f"Bet status: {status}")
+            print(f"Bettor ID: {bettor_id}")
+            print(f"User trying to cancel: {user.id}")
+
+            # Only bettor can cancel
+            if str(user.id) != bettor_id:
+                await thread.send(f"{user.mention} Only the bet creator can cancel this bet.")
+                return
+
+            # Can only cancel open bets
+            if status != 'open':
+                await thread.send(f"{user.mention} This bet can no longer be cancelled.")
+                return
+
+            print("All validations passed, proceeding with cancellation...")
+            
+            # Update bet status
+            cursor.execute('''
+                UPDATE bet_offers
+                SET status = 'cancelled'
+                WHERE bet_id = ?
+            ''', (bet_id,))
+            print("Updated bet_offers status")
+            
+            conn.commit()
+            print("Committed database changes")
+
+            print("Updating embed...")
+            embed = message.embeds[0]
+            embed.color = discord.Color.red()
+            embed.add_field(
+                name="Status", 
+                value="Cancelled by creator",
+                inline=False
+            )
+            await message.edit(embed=embed)
+            print("Updated embed")
+
+            print("Clearing reactions...")
+            for reaction in ["✅", "❌"]:
+                await message.clear_reaction(reaction)
+            print("Cleared reactions")
+
+            await thread.send(f"❌ Bet {bet_id} has been cancelled.")
+            print("Sent confirmation message")
+
+        except Exception as e:
+            print(f"Error during bet cancellation: {str(e)}")
+            await thread.send(f"Error cancelling bet: {str(e)}")
+            conn.rollback()
+            raise  # Re-raise to see full traceback in logs
+
     @staticmethod
     async def handle_react_help(message):
         """Handle 🆘 reaction on market"""
