@@ -422,6 +422,45 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
     
     await ctx.send(embed=embed)
 
+async def get_market_recreation_info(cursor, market_id):
+    """Get detailed market info for recreation purposes"""
+    # Get market outcomes
+    cursor.execute('''
+        SELECT outcome_name
+        FROM market_outcomes
+        WHERE market_id = ?
+        ORDER BY outcome_id
+    ''', (market_id,))
+    outcomes = [row[0] for row in cursor.fetchall()]
+    
+    # Get active bets
+    cursor.execute('''
+        SELECT bettor_id, outcome, offer_amount, ask_amount, target_user_id, status
+        FROM bet_offers
+        WHERE market_id = ? AND status != 'cancelled'
+        ORDER BY created_at
+    ''', (market_id,))
+    bets = cursor.fetchall()
+    
+    # Format the recreation message
+    info = ["**Market Recreation Info:**"]
+    info.append("Options:")
+    for outcome in outcomes:
+        info.append(f"• {outcome}")
+    
+    if bets:
+        info.append("\nExisting Bets:")
+        for bet in bets:
+            bettor_id, outcome, offer, ask, target_id, status = bet
+            bet_info = f"• <@{bettor_id}> on '{outcome}': ${offer} to win ${ask}"
+            if target_id:
+                bet_info += f" (offered to <@{target_id}>)"
+            if status == 'accepted':
+                bet_info += " [ACCEPTED]"
+            info.append(bet_info)
+    
+    return "\n".join(info)
+
 @bot.command(name='market')
 async def get_market_link(ctx, market_id: str):
     """Get a link to a market's message"""
@@ -451,9 +490,11 @@ async def get_market_link(ctx, market_id: str):
         print(f"title: {title}")
         
         if not message_id and not thread_id:
+            # Get recreation info
+            recreation_info = await get_market_recreation_info(cursor, market_id)
             await ctx.send(
-                f"Market {market_id} ({title}) is a legacy market with no stored message. "
-                "Please use !createmarket to recreate it if needed."
+                f"Market {market_id} ({title}) is a legacy market with no stored message.\n"
+                f"Please use !createmarket to recreate it if needed.\n\n{recreation_info}"
             )
             return
             
@@ -477,7 +518,7 @@ async def get_market_link(ctx, market_id: str):
             # Fallback to message_id if thread approach failed
             if message_id:
                 print(f"Trying to find message {message_id} in channels")
-                # We don't store channel_id, so we'll search visible channels
+                found = False
                 for channel in ctx.guild.text_channels:
                     print(f"Searching channel: {channel.name}")
                     try:
@@ -485,19 +526,27 @@ async def get_market_link(ctx, market_id: str):
                         if message:
                             link = f"https://discord.com/channels/{ctx.guild.id}/{channel.id}/{message.id}"
                             await ctx.send(f"Market {market_id} ({title}): {link}")
-                            return
+                            found = True
+                            break
                     except discord.NotFound:
                         continue
-            
-            # If we get here, we couldn't find the message
-            await ctx.send(
-                f"Market {market_id} ({title}) exists but the message couldn't be found. "
-                "Please use !createmarket to recreate it if needed."
-            )
+                
+                if not found:
+                    # Get recreation info
+                    recreation_info = await get_market_recreation_info(cursor, market_id)
+                    await ctx.send(
+                        f"Market {market_id} ({title}) exists but the message couldn't be found.\n"
+                        f"Please use !createmarket to recreate it if needed.\n\n{recreation_info}"
+                    )
             
         except Exception as e:
             print(f"Error finding market: {str(e)}")
-            await ctx.send(f"Error finding market message: {str(e)}")
+            # Get recreation info even on error
+            recreation_info = await get_market_recreation_info(cursor, market_id)
+            await ctx.send(
+                f"Error finding market message: {str(e)}\n\n"
+                f"Market {market_id} ({title}) info for recreation:\n{recreation_info}"
+            )
 
 @bot.command(name='mybets')
 async def my_bets(ctx):
