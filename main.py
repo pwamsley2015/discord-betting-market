@@ -224,12 +224,12 @@ async def list_markets(ctx):
     results = []
     for market_id, title, outcomes in markets:
         results.append(f"{title} [{market_id}]\n")
-    final_result = '\n'.join(results)
 
-    print(final_result)
-    # embed = discord.Embed(title="Active Betting Markets", description=final_result, color=discord.Color.purple())
-
-    await ctx.send(final_result)
+    # Split results into chunks of 5
+    for i in range(0, len(results), 5):
+        chunk = results[i:i+5]
+        final_result = ''.join(chunk)
+        await ctx.send(final_result)
 
 @bot.command(name='listbets')
 async def list_bets(ctx, market_id: int = None):
