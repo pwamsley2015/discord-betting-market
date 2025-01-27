@@ -223,7 +223,7 @@ async def list_markets(ctx):
 
     results = []
     for market_id, title, outcomes in markets:
-        results.append(f"{title} [{market_id}]\n\t{outcomes}")
+        results.append(f"{title} [{market_id}]\n")
     final_result = '\n'.join(results)
 
     # embed = discord.Embed(title="Active Betting Markets", description=final_result, color=discord.Color.purple())
