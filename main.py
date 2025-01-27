@@ -433,12 +433,20 @@ async def get_market_recreation_info(cursor, market_id):
     ''', (market_id,))
     outcomes = [row[0] for row in cursor.fetchall()]
     
-    # Get active bets
+    # Get active bets with acceptor info
     cursor.execute('''
-        SELECT bettor_id, outcome, offer_amount, ask_amount, target_user_id, status
-        FROM bet_offers
-        WHERE market_id = ? AND status != 'cancelled'
-        ORDER BY created_at
+        SELECT 
+            b.bettor_id, 
+            b.outcome, 
+            b.offer_amount, 
+            b.ask_amount, 
+            b.target_user_id, 
+            b.status,
+            ab.acceptor_id
+        FROM bet_offers b
+        LEFT JOIN accepted_bets ab ON b.bet_id = ab.bet_id
+        WHERE b.market_id = ? AND b.status != 'cancelled'
+        ORDER BY b.created_at
     ''', (market_id,))
     bets = cursor.fetchall()
     
@@ -451,12 +459,12 @@ async def get_market_recreation_info(cursor, market_id):
     if bets:
         info.append("\nExisting Bets:")
         for bet in bets:
-            bettor_id, outcome, offer, ask, target_id, status = bet
+            bettor_id, outcome, offer, ask, target_id, status, acceptor_id = bet
             bet_info = f"• <@{bettor_id}> on '{outcome}': ${offer} to win ${ask}"
             if target_id:
                 bet_info += f" (offered to <@{target_id}>)"
-            if status == 'accepted':
-                bet_info += " [ACCEPTED]"
+            if status == 'accepted' and acceptor_id:
+                bet_info += f" [ACCEPTED by <@{acceptor_id}>]"
             info.append(bet_info)
     
     return "\n".join(info)
