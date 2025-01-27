@@ -445,6 +445,10 @@ async def get_market_link(ctx, market_id: str):
             return
             
         message_id, thread_id, title = result
+        print(f"Found market {market_id} in DB:")
+        print(f"message_id: {message_id}")
+        print(f"thread_id: {thread_id}")
+        print(f"title: {title}")
         
         if not message_id and not thread_id:
             await ctx.send(
@@ -456,16 +460,23 @@ async def get_market_link(ctx, market_id: str):
         try:
             # Try using thread_id first if available
             if thread_id:
+                print(f"Attempting to fetch thread {thread_id}")
                 thread = await ctx.guild.fetch_channel(int(thread_id))
+                print(f"Got thread: {thread}")
                 if thread and thread.starter_message:
+                    print(f"Got starter message: {thread.starter_message.id}")
                     link = f"https://discord.com/channels/{ctx.guild.id}/{thread.parent.id}/{thread.starter_message.id}"
                     await ctx.send(f"Market {market_id} ({title}): {link}")
                     return
+                else:
+                    print("No starter message found")
             
             # Fallback to message_id if thread approach failed
             if message_id:
+                print(f"Trying to find message {message_id} in channels")
                 # We don't store channel_id, so we'll search visible channels
                 for channel in ctx.guild.text_channels:
+                    print(f"Searching channel: {channel.name}")
                     try:
                         message = await channel.fetch_message(int(message_id))
                         if message:
@@ -482,7 +493,8 @@ async def get_market_link(ctx, market_id: str):
             )
             
         except Exception as e:
-            await ctx.send(f"Error finding market message: {str(e)}")   
+            print(f"Error finding market: {str(e)}")
+            await ctx.send(f"Error finding market message: {str(e)}")
 
 @bot.command(name='mybets')
 async def my_bets(ctx):
