@@ -463,13 +463,16 @@ async def get_market_link(ctx, market_id: str):
                 print(f"Attempting to fetch thread {thread_id}")
                 thread = await ctx.guild.fetch_channel(int(thread_id))
                 print(f"Got thread: {thread}")
-                if thread and thread.starter_message:
-                    print(f"Got starter message: {thread.starter_message.id}")
-                    link = f"https://discord.com/channels/{ctx.guild.id}/{thread.parent.id}/{thread.starter_message.id}"
+                
+                # Explicitly fetch the starter message
+                try:
+                    starter_message = await thread.parent.fetch_message(thread.id)
+                    print(f"Got starter message: {starter_message.id}")
+                    link = f"https://discord.com/channels/{ctx.guild.id}/{thread.parent.id}/{starter_message.id}"
                     await ctx.send(f"Market {market_id} ({title}): {link}")
                     return
-                else:
-                    print("No starter message found")
+                except discord.NotFound:
+                    print("Could not fetch starter message")
             
             # Fallback to message_id if thread approach failed
             if message_id:
