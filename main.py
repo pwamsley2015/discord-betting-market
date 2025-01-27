@@ -220,16 +220,14 @@ async def list_markets(ctx):
     if not markets:
         await ctx.send("No active betting markets at the moment.")
         return
-    
-    embed = discord.Embed(title="Active Betting Markets", color=discord.Color.purple())
-    
+
+    results = []
     for market_id, title, outcomes in markets:
-        embed.add_field(
-            name=f"Market ID: {market_id}",
-            value=f"{title}\nOptions: {outcomes}",
-            inline=False
-        )
-    
+        results.append(f"{title} [{market_id}]\n\t{outcomes}")
+    final_result = '\n'.join(results)
+
+    embed = discord.Embed(title="Active Betting Markets", description=final_result, color=discord.Color.purple())
+
     await ctx.send(embed=embed)
 
 @bot.command(name='listbets')
@@ -546,78 +544,6 @@ async def my_bets(ctx):
     
     if not (open_offers or bets_as_bettor or bets_as_acceptor):
         embed.description = "You have no open offers or active bets."
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name='explainbet')
-async def explain_bet(ctx, bet_id: int):
-    """
-    Explain what would happen if a bet is accepted
-    Usage: !explainbet <bet_id>
-    """
-    with bot.db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Get bet details
-        cursor.execute('''
-            SELECT b.bettor_id, b.outcome, b.offer_amount, b.ask_amount, 
-                   b.target_user_id, m.title, m.market_id
-            FROM bet_offers b
-            JOIN markets m ON b.market_id = m.market_id
-            WHERE b.bet_id = ?
-        ''', (bet_id,))
-        
-        bet = cursor.fetchone()
-        if not bet:
-            await ctx.send("Bet not found.")
-            return
-            
-        bettor_id, outcome, offer, ask, target_id, title, market_id = bet
-        
-        # Get all possible outcomes for this market
-        cursor.execute('''
-            SELECT outcome_name 
-            FROM market_outcomes 
-            WHERE market_id = ?
-        ''', (market_id,))
-        outcomes = [row[0] for row in cursor.fetchall()]
-
-    # Create explanation embed
-    embed = discord.Embed(
-        title=f"Bet #{bet_id} Explained",
-        description=f"Market: {title}",
-        color=discord.Color.blue()
-    )
-    
-    # Get user names (using IDs stored in DB)
-    bettor = await bot.fetch_user(int(bettor_id))
-    bettor_name = bettor.name if bettor else "Unknown"
-    
-    target_name = "anyone"
-    if target_id:
-        target = await bot.fetch_user(int(target_id))
-        target_name = target.name if target else "Unknown"
-    
-    # Explain what happens for each outcome
-    explanation = "If accepted:\n"
-    for possible_outcome in outcomes:
-        if possible_outcome == outcome:
-            explanation += f"- If \"{possible_outcome}\": {bettor_name} wins ${ask}, acceptor loses ${ask}\n"
-        else:
-            explanation += f"- If \"{possible_outcome}\": {bettor_name} loses ${offer}, acceptor wins ${offer}\n"
-    
-    embed.add_field(
-        name="Mechanics", 
-        value=explanation,
-        inline=False
-    )
-    
-    # Add who can accept
-    embed.add_field(
-        name="Who can accept?",
-        value=f"This bet can be accepted by {target_name}",
-        inline=False
-    )
     
     await ctx.send(embed=embed)
 
