@@ -649,6 +649,70 @@ Show your open offers and active bets
    embed.set_footer(text="Dennis v2.0 | Boats carried by Claude")
    
    await ctx.send(embed=embed)
+
+@bot.command(name='rm')
+async def remove_markets(ctx, *market_ids: str):
+    """Remove one or more markets from the database"""
+    
+    # Check if user is bot owner or has admin permissions
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("Sorry, only administrators can remove markets.")
+        return
+        
+    if not market_ids:
+        await ctx.send("Please provide at least one market ID to remove.")
+        return
+    
+    # Parse market IDs and validate they're numbers
+    try:
+        ids_to_remove = [int(market_id.strip()) for market_id in market_ids]
+    except ValueError:
+        await ctx.send("Invalid market ID format. Please provide numeric IDs.")
+        return
+    
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        
+        try:
+            # Start transaction
+            cursor.execute('BEGIN TRANSACTION')
+            
+            # Delete associated bet offers first (due to foreign key constraints)
+            cursor.execute('''
+                DELETE FROM bet_offers 
+                WHERE market_id IN ({})
+            '''.format(','.join('?' * len(ids_to_remove))), ids_to_remove)
+            
+            # Delete market outcomes
+            cursor.execute('''
+                DELETE FROM market_outcomes 
+                WHERE market_id IN ({})
+            '''.format(','.join('?' * len(ids_to_remove))), ids_to_remove)
+            
+            # Delete markets
+            cursor.execute('''
+                DELETE FROM markets 
+                WHERE market_id IN ({})
+            '''.format(','.join('?' * len(ids_to_remove))), ids_to_remove)
+            
+            deleted_count = cursor.rowcount
+            
+            # Commit transaction
+            conn.commit()
+            
+            # Remove from active_markets if present
+            for market_data in list(bot.active_markets.values()):
+                if market_data['market_id'] in ids_to_remove:
+                    message_id = market_data.get('message_id')
+                    if message_id:
+                        bot.active_markets.pop(int(message_id), None)
+            
+            await ctx.send(f"Successfully removed {deleted_count} markets.")
+            
+        except Exception as e:
+            conn.rollback()
+            await ctx.send(f"Error removing markets: {str(e)}")
+            
 # Run the bot
 if __name__ == "__main__":
     bot.run(TOKEN)
