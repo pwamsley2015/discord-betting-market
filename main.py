@@ -422,6 +422,68 @@ async def resolve_market(ctx, market_id: int, *, winning_outcome: str):
     
     await ctx.send(embed=embed)
 
+@bot.command(name='market')
+async def get_market_link(ctx, market_id: str):
+    """Get a link to a market's message"""
+    try:
+        market_id = int(market_id)
+    except ValueError:
+        await ctx.send("Please provide a valid market ID number.")
+        return
+        
+    with bot.db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT message_id, thread_id, title
+            FROM markets 
+            WHERE market_id = ?
+        ''', (market_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            await ctx.send(f"Market {market_id} not found.")
+            return
+            
+        message_id, thread_id, title = result
+        
+        if not message_id and not thread_id:
+            await ctx.send(
+                f"Market {market_id} ({title}) is a legacy market with no stored message. "
+                "Please use !createmarket to recreate it if needed."
+            )
+            return
+            
+        try:
+            # Try using thread_id first if available
+            if thread_id:
+                thread = await ctx.guild.fetch_channel(int(thread_id))
+                if thread and thread.starter_message:
+                    link = f"https://discord.com/channels/{ctx.guild.id}/{thread.parent.id}/{thread.starter_message.id}"
+                    await ctx.send(f"Market {market_id} ({title}): {link}")
+                    return
+            
+            # Fallback to message_id if thread approach failed
+            if message_id:
+                # We don't store channel_id, so we'll search visible channels
+                for channel in ctx.guild.text_channels:
+                    try:
+                        message = await channel.fetch_message(int(message_id))
+                        if message:
+                            link = f"https://discord.com/channels/{ctx.guild.id}/{channel.id}/{message.id}"
+                            await ctx.send(f"Market {market_id} ({title}): {link}")
+                            return
+                    except discord.NotFound:
+                        continue
+            
+            # If we get here, we couldn't find the message
+            await ctx.send(
+                f"Market {market_id} ({title}) exists but the message couldn't be found. "
+                "Please use !createmarket to recreate it if needed."
+            )
+            
+        except Exception as e:
+            await ctx.send(f"Error finding market message: {str(e)}")   
+
 @bot.command(name='mybets')
 async def my_bets(ctx):
     """
@@ -712,7 +774,7 @@ async def remove_markets(ctx, *market_ids: str):
         except Exception as e:
             conn.rollback()
             await ctx.send(f"Error removing markets: {str(e)}")
-            
+
 # Run the bot
 if __name__ == "__main__":
     bot.run(TOKEN)
