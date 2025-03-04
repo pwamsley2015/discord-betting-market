@@ -225,13 +225,17 @@ async def list_markets(ctx):
     for market_id, title, outcomes in markets:
         results.append(f"{title} [{market_id}]\n")
 
-    # Split results into chunks of 5
+    # Split results into chunks of 5 and store sent messages
+    messages = []
     for i in range(0, len(results), 5):
         chunk = results[i:i+5]
         final_result = ''.join(chunk)
         message = await ctx.send(final_result)
-        # Delete message after 60 seconds (1 minute)
-        await asyncio.sleep(60)
+        messages.append(message)
+    
+    # Wait 60 seconds (1 minute) then delete all messages
+    await asyncio.sleep(60)
+    for message in messages:
         try:
             await message.delete()
         except discord.errors.NotFound:
