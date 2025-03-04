@@ -715,14 +715,22 @@ class Market:
         await asyncio.sleep(20)
         await help_msg.delete()
         
-    async def handle_bet_reaction_feedback(self, message, user, emoji):
+    async def handle_bet_reaction_feedback(self, message, user, emoji, bet_id):
         """Handle feedback reactions (📉, 🤏, monkaS) to notify bettor"""
         # The message should be in a thread already
         thread = message.channel
         
-        # Extract bettor mention from the embed title
-        embed = message.embeds[0]
-        bettor_mention = embed.title.split(" offering ")[0]
+        # Get bettor ID from database
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT bettor_id FROM bet_offers WHERE bet_id = ?', (bet_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                print("Could not find bet in database")
+                return
+                
+            bettor_id = result[0]
         
         # Determine the feedback message based on emoji
         if emoji == "📉":
@@ -734,8 +742,8 @@ class Market:
         else:
             return  # Exit if invalid emoji
             
-        # Send notification in thread
-        await thread.send(f"{bettor_mention}, {user.mention} {feedback}.")
+        # Send notification in thread with proper mention
+        await thread.send(f"<@{bettor_id}>, {user.mention} {feedback}.")
 
     async def update_stats(self):
         """Update market stats in the embed"""

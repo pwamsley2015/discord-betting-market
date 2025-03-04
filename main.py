@@ -161,7 +161,7 @@ async def on_raw_reaction_add(payload):
                     elif str(payload.emoji) == "🆘":
                         await market.handle_bet_react_help(message)
                     elif str(payload.emoji) in ["📉", "🤏", "<:monkaS:814271443327123466>"]:
-                        await market.handle_bet_reaction_feedback(message, user, str(payload.emoji))
+                        await market.handle_bet_reaction_feedback(message, user, str(payload.emoji), bet_id)
 
 @bot.command(name='offerbet')
 async def offer_bet(ctx, market_id: int, outcome: str, offer: float, ask: float, target_user: discord.Member = None):
