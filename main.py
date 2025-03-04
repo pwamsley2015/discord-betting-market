@@ -229,7 +229,13 @@ async def list_markets(ctx):
     for i in range(0, len(results), 5):
         chunk = results[i:i+5]
         final_result = ''.join(chunk)
-        await ctx.send(final_result)
+        message = await ctx.send(final_result)
+        # Delete message after 60 seconds (1 minute)
+        await asyncio.sleep(60)
+        try:
+            await message.delete()
+        except discord.errors.NotFound:
+            pass  # Message already deleted
 
 @bot.command(name='listbets')
 async def list_bets(ctx, market_id: int = None):
