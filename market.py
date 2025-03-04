@@ -714,6 +714,28 @@ class Market:
         # Delete help message after 20 seconds
         await asyncio.sleep(20)
         await help_msg.delete()
+        
+    async def handle_bet_reaction_feedback(self, message, user, emoji):
+        """Handle feedback reactions (📉, 🤏, monkaS) to notify bettor"""
+        # The message should be in a thread already
+        thread = message.channel
+        
+        # Extract bettor mention from the embed title
+        embed = message.embeds[0]
+        bettor_mention = embed.title.split(" offering ")[0]
+        
+        # Determine the feedback message based on emoji
+        if emoji == "📉":
+            feedback = "thinks your bet has bad odds"
+        elif emoji == "🤏":
+            feedback = "thinks your bet amount is too small"
+        elif emoji == "<:monkaS:814271443327123466>":
+            feedback = "thinks your bet amount is too big"
+        else:
+            return  # Exit if invalid emoji
+            
+        # Send notification in thread
+        await thread.send(f"{bettor_mention}, {user.mention} {feedback}.")
 
     async def update_stats(self):
         """Update market stats in the embed"""
